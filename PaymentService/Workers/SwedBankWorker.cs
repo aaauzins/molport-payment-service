@@ -54,7 +54,10 @@ public class SwedBankWorker : BackgroundService
 
         _logger.LogInformation("SwedBank: fetching transactions {From} → {To}", from, to);
         var transactions = await _sgw.GetIncomingTransactionsAsync(from, to);
-        await _matcher.ProcessTransactionsAsync(transactions);
-        await _repo.UpsertSyncStateAsync(Source, DateTime.UtcNow);
+        var allSucceeded = await _matcher.ProcessTransactionsAsync(transactions);
+        if (allSucceeded)
+            await _repo.UpsertSyncStateAsync(Source, DateTime.UtcNow);
+        else
+            _logger.LogWarning("SwedBank: some transactions failed — sync state not advanced, will retry next cycle");
     }
 }

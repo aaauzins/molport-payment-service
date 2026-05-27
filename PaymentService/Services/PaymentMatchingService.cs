@@ -20,20 +20,32 @@ public class PaymentMatchingService
         _logger = logger;
     }
 
-    public async Task ProcessTransactionsAsync(IEnumerable<NormalizedTransaction> transactions)
+    public async Task<bool> ProcessTransactionsAsync(IEnumerable<NormalizedTransaction> transactions)
     {
         var txList = transactions.ToList();
-        if (txList.Count == 0) return;
+        if (txList.Count == 0) return true;
 
         var openInvoices = (await _repo.GetOpenAdvancedPaymentInvoicesAsync()).ToList();
         var currencyMap = await _currencyCache.GetMapAsync();
         _logger.LogInformation("Loaded {Count} open invoices awaiting payment", openInvoices.Count);
 
+        var allSucceeded = true;
         foreach (var tx in txList)
         {
-            var result = await MatchAsync(tx, openInvoices);
-            await RecordResultAsync(result, currencyMap);
+            try
+            {
+                var result = await MatchAsync(tx, openInvoices);
+                await RecordResultAsync(result, currencyMap);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "[{Source}] Failed to process transaction {TxId} — will retry next cycle",
+                    tx.Source, tx.TransactionId);
+                allSucceeded = false;
+            }
         }
+        return allSucceeded;
     }
 
     private async Task<MatchResult> MatchAsync(NormalizedTransaction tx, List<OpenInvoice> openInvoices)
@@ -93,16 +105,24 @@ public class PaymentMatchingService
 
         var reference = tx.ExtractedReference;
 
-        // Try exact invoice number match first
+        // Exact invoice number match (e.g. reference = "YF27O3045123-I1")
         var byInvoice = invoices.FirstOrDefault(i =>
             !string.IsNullOrEmpty(i.InvoiceNumber) &&
-            i.InvoiceNumber.Contains(reference, StringComparison.OrdinalIgnoreCase));
+            i.InvoiceNumber.Equals(reference, StringComparison.OrdinalIgnoreCase));
         if (byInvoice != null) return byInvoice;
 
-        // Fall back to order number
+        // Invoice starts with the order-number portion of the reference + "-" to avoid
+        // false matches with orders that share a common prefix (e.g. "YF27O3045123-" won't
+        // match "YF27O30451230-I1")
+        byInvoice = invoices.FirstOrDefault(i =>
+            !string.IsNullOrEmpty(i.InvoiceNumber) &&
+            i.InvoiceNumber.StartsWith(reference + "-", StringComparison.OrdinalIgnoreCase));
+        if (byInvoice != null) return byInvoice;
+
+        // Exact order number match
         return invoices.FirstOrDefault(i =>
             !string.IsNullOrEmpty(i.OrderNumber) &&
-            i.OrderNumber.Contains(reference, StringComparison.OrdinalIgnoreCase));
+            i.OrderNumber.Equals(reference, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task RecordResultAsync(MatchResult result, Dictionary<string, long> currencyMap)

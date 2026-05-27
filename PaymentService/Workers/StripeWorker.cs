@@ -59,7 +59,10 @@ public class StripeWorker : BackgroundService
         _logger.LogInformation("Stripe [{Account}]: fetching charges since {Since}", accountName, since);
 
         var transactions = await client.GetSucceededChargesSinceAsync(since);
-        await _matcher.ProcessTransactionsAsync(transactions);
-        await _repo.UpsertSyncStateAsync(source, DateTime.UtcNow);
+        var allSucceeded = await _matcher.ProcessTransactionsAsync(transactions);
+        if (allSucceeded)
+            await _repo.UpsertSyncStateAsync(source, DateTime.UtcNow);
+        else
+            _logger.LogWarning("Stripe [{Account}]: some transactions failed — sync state not advanced, will retry next cycle", accountName);
     }
 }
