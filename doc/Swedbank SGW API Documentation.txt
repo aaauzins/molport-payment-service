@@ -1,0 +1,4328 @@
+Introduction
+
+Swedbank Gateway is a solution that combines banking services with the company’s business software.
+
+Swedbank Gateway is an asynchronous automated data communications channel between client’s Information System (sometimes referred to as ERP) and Swedbank. Client and the bank exchange data asynchronously in real-time, 24 hours a day, making information available regardless of working hours.
+
+Swedbank Gateway Specification
+Technically Swedbank Gateway is RESTful API with requests and responses in XML format. Standard HTTPS (HTTP with SSL) protocol is used for communication.
+
+Client sends data requests to the bank with HTTP POST request and receives responses from the bank with HTTP GET request. After receiving a response, client must send confirmation message with HTTP DELETE request. This means that the whole cycle of one message consists of three parts: sending the request, fetching the response and deleting the requested response.
+
+Definitions and abbreviations
+SGW – Swedbank Gateway API.
+
+ERP– Customer Information System (IS) or Enterprise Resource Planning (ERP).
+
+ASICE– term ASiC-E is used through the text to denote both XAdES profile and a container format for digitally signed files with extension .asice.
+
+SK – SK ID Solutions AS (CA in Estonia, http://www.sk.ee).
+
+RC – Registru Centras (CA in Lithuania, http://www.registrucentras.lt/en/ ).
+
+LVRTC - Latvia State Radio and Television Centre (CA in Latvia, https://www.eparaksts.lv/en/)
+
+SGW Operator (in SGW service) – the person who mediates transactions on behalf of the client and to whom extend the conditions of the agreement in order to mediate transactions in the necessary volume.
+
+Operator (in E-invoice service) –the person who intermediates the E-invoices of the client - put under E-invoice service.
+
+Agreement-ID - Swedbank Gateway agreement number provided by the bank and used as parameter X-Agreement-ID that uniquely identifies the agreement in Swedbank EE/LV/LT.
+
+API Key (client_id) - customer identification number in SGW API used in message exchange for customer/Operator identification. This Client ID will be generated during onboarding on Swedbank Developer portal.
+
+X-Request-ID - Message request ID set by the customer, which helps to connect request and response data. ID must be unique.
+
+X-Tracking-ID - Bank side unique message ID in Header.
+
+trackingId - Bank side message ID in DELETE request parameters. The same value as X-Tracking-ID in POST/GET message response.
+
+Date - Date and time of request/response:
+
+All dates and time in parameters & request body should be represented in ISO 8601 date or date time format e.g.: ISO 8601 Date - 2019-05-30 ISO 8601 DateTime - 2019-05-30T00:00:00+00:00
+
+All dates in the HTTP headers are represented as RFC 1123 Full Dates Tue, 21 May 2019 14:23:49 GMT
+
+Transport certificate - is the electronic certificate with which the Client´s or Operator´s information system creates the connection with SGW and confirms the Data Files sent to the Bank.
+
+Signing certificate - qualified electronic signature with OCSP confirmation given by this certificate is used for approving payments in SGW channel.
+
+Signing API - service that enable customer to create, sign payment message on the Bank side with simple REST calls via mTLS connection.
+
+mTLS - Mutual TLS is a type of authentication in which the two parties in a connection authenticate each other using the TLS protocol.
+
+Prerequisites for using Swedbank Gateway
+To start using Swedbank Gateway services you need:
+
+Conclude Swedbank Gateway service agreement.
+You will be issued unique X-Agreement-ID, used in message exchange for customer identification.
+Have Transport certificate for connection - Each communication session is authenticated by client’s Transport certificate.
+You need trust Public Root certificate and certificate issuer (DigiCert Global G2 TLS RSA SHA256 2020 CA1) for connecting with psd2.api.swedbank.com, that ensures that client is connecting the right service. The “DigiCert Global G2 TLS RSA SHA256 2020 CA1” certificate is available on the following page: https://www.digicert.com/kb/digicert-root-certificates.htm
+For access you need register your company in Swedbank Developer portal: https://developer.swedbank.com/admin/app/home.
+After registering you will get API Key(client_id), used in message exchange for customer/Operator identification.
+Connection schemes
+There are two different connection schemes to use Swedbank Gateway services:
+
+Direct connection
+Connection via intermediary (via Operator).
+If customer has direct connection, then client has their own Transport certificate for authentication and accesses all services directly only for their own use.
+
+If you act as the technical intermediary- Operator and initiating request on behalf of other company, then for such request you always need to add as header parameter AgreementId (‘X-Agreement-ID’) of this company. If you want to access your own accounts, then you should use your own AgreementId. If not provided Agreement-ID, wrong value or authorization is missing (company hasn’t authorized you as their intermediary in agreement with Swedbank or agreement is not active), then API returns HTTP 403 (Forbidden).
+
+SGW address in production environment is https://psd2.api.swedbank.com/partner/v1/sgw/
+
+SGW Sandbox base url is: https://psd2.api.swedbank.com/partner/sandbox/v1/sgw/
+
+API for PSD2 service availability check: https://psd2.api.swedbank.com/support/v1/availability
+
+API documentation with code examples (swagger file, which helps to examine all available API-s interactively) is kept in Swedbank developer portal: https://developer.swedbank.com/admin/app/home
+
+Swagger file can be opened with any suitable tool, like https://editor.swagger.io/.
+
+Official version of New SGW specification in PDF is kept on Swedbank’s SGW info page:
+
+LT - Swedbank Gateway page
+LV - Swedbank Gateway page
+EE- Swedbank Gateway page.
+
+Authentication and security
+
+API communication uses certificate-based authentication (X.509 public key infrastructure (PKI) based standard) over HTTPS (HTTP/1.1 over TLS1.2) protocol.
+
+Following certificates are used for Swedbank Gateway services:
+
+Transport certificate – this certificate is used in order to authenticate communication session from client’s information system/ERP to SGW channel. Transport Certificate file extension and format should be used up to client system implementation. No exact requirements from bank side.
+
+NB! Certificate must have minimum following values:
+
+ 	Key Usage: Digital Signature, Key Encipherment.
+  	Extended Key Usage: Client Authentication
+  	Key Size: 2048 bit
+Certificate issuing process is based on Certificate Signing Request (CSR) provided by the client. Instruction you can find here: How to generate CSR with different tools.
+
+ o	Ask CN value for CSR creation from Swedbank and send the created CSR to Swedbank. In return you will get the Swedbank issued certificate which can be used for authentication to access API-s.
+
+ o  Suitable software token certificate from SK is issued by trusted CA SK ID Solutions AS (SK) from KLASS3 root, under “B4B” profile. Read more about SK’s certificate policies - [http://www.sk.ee/en/repository/CP/](http://www.sk.ee/en/repository/CP/) and about certificate profiles: [https://www.sk.ee/en/repository/profiles/](https://www.sk.ee/en/repository/profiles/)
+
+ o	Also supported Device certificates that are issued by Lithuanian Registru Centras - [https://www.elektroninis.lt/lt/isigyti/nid-505](https://www.elektroninis.lt/lt/isigyti/nid-505) . This certificate is mainly used in Swedbank Lithuania.
+
+ o	Also supported Device certificates that are issued by Latvia State Radio and Television Centre [https://www.eparaksts.lv/en/](https://www.eparaksts.lv/en/)
+Public ROOT certificate to be trusted by customer for creating mTls connection https://psd2.api.swedbank.com/partner/v1/sgw/, that ensures that client is connecting the right service.
+
+o You can use command line to fetch certificate chain: openssl s_client -showcerts -verify 5 -connect psd2.api.swedbank.com:443 < /dev/null
+
+Signature certificate – used for payment confirmation qualified electronic signature with OCSP signing given by this certificate is used for approving payments in SGW channel. Signature certificates should always be on a physical device (non-reproducible) and issued by a CA that the bank trusts. Signature certificate generally must be qualified and has following value in Key Usage: Non-Repudiation. Also, for payment signing can be used as Confirmation certificate - e-seal. E-seal is a qualified electronic certificate (the QSCD equivalent technical signature with OCSP confirmation given with this token is accepted by the bank and issued by trusted CA). E-seal used to identify the user and to confirm the transactions made by the user. Currently accepted Confirmation certificates in SGW channel: from Registrų Centras Elektroninis.lt and SK: https://www.skidsolutions.eu/en/services/Digital-stamp/e-seal-qscd/. For E-seal apply requirements - must be qualified and with key usage "Non-Repudiation“. ps. Signature certificates always should be issued to a person and in case of e-seal to organization.
+
+Currently accepted and supported Signature certificates via SGW channel in Swedbank Lithuania, Latvia, Estonia and issued in listed countries:
+
+Issued in Latvia	Issued in Estonia	Issued in Lithuania	Issued in Finnland
+ID-card	+	+	+	+
+Digi-ID		+		
+E-resident Digi-ID		+		
+Qualified Smart-ID	+	+	+	
+Mobile-ID		+	+	
+Cryptostick FIPS 140-2 certified cryptostick with RC certificate			+	
+Cryptostick Giesecke & Devrient (G&D) with RC certificate			+	
+E-seal	+ issued by LVRTC	+ issued by SK	+ issued by RC: elektroninis.lt	
+ps . All options are usable in any country (Lithuania, Latvia, Estonia) via SGW.
+
+Providers of certification services / CA acceptable to the Bank:
+
+SK ID Solutions AS: https://www.sk.ee/en/
+Lithuanian VĮ Registrų Centras:Elektroninis.lt
+Latvia State Radio and Television Centre https://www.eparaksts.lv/en/
+Since certificates are valid only for a certain period, client must monitor the validity of certificate, get a new certificate when it expires and contact the bank to update the service agreement with the new certificate.
+
+For mission critical systems where interruptions are not allowed, support of two certificates can be planned during the switching period. In case the certificate’s private key has been compromised, client should immediately inform the bank and the certificate will be closed.
+
+Since Public root certificate, for creating mTLs connection, can be issued from new roots, which may also mean trusting new root level certificates of CA.
+
+SGW supports for electronic signature only ASiCE (Associated Signature Containers – Extended) with timestamp (TS) extension .asice. ASICE (.asice) is signature format, where the long-term evidential value of LT (Long Term time stamp) signatures is ensured with a timestamp based on the RFC 3161 standard. This signature format is preferred in all European Union member states and automatically used in DigiDoc4 (the extension .asice).
+
+For more details about formats please read https://www.id.ee/en/article/bdoc-cdoc-and-asice-digidoc-file-formats-4/.
+
+NB! SGW service does not require any changes for ASiCE container creation besides B4B signature validation, thus follow the instructions provided on https://www.id.ee/en/rubriik/for-developer/.
+
+Additional information about containers and electronic signature:
+
+DigiDoc4j description (Java library for digitally signing documents and creating digital signature containers of signed documents with qualified signature) - https://github.com/open-eid/digidoc4j.
+Information for developers about signatures, signing methods and formats (Estonia) - https://www.id.ee/index.php?id=30469.
+Electronic signature information (Latvia) - https://www.eparaksts.lv/en/About_eSignature.
+Electronic signature information (Lithuania) - http://www.elektroninis.lt/en, Lithuanian national identity cards and electronic signatures. About. (vrm.lt).
+SK ID Solutions AS services - https://www.sk.ee/en/services/.
+
+Connection and messaging
+
+he Swedbank Gateway API is asynchronous messaging. Client message container is like an inbox. Client sends a request to the server and then polls the inbox for a response. If there are any messages in the inbox, by default the oldest message is returned. The whole process of one message consists of three parts: sending the request to the bank, receiving responses from the bank and deleting the response.
+
+Flow sample of API request:
+POST [base-url]/account-statements?client_id=<API Key> 		# submit statement request
+
+GET [base-url]/messages?client_id=<API Key>        	     		# get response message with statement info
+
+DELETE [base-url]/messages?trackingId=<trackingId>&client_id=<API Key>  	# confirm message received
+Base-URL: https://psd2.api.swedbank.com/partner/v1/sgw/
+
+Connection parameters:
+Service (for example account statement) related URL
+
+https://psd2.api.swedbank.com/partner/v1/sgw/account-statement
+
+TLS client authentication is mandatory
+
+Transport certificate must be used for TLS client authentication.
+HTTP header
+
+o POST request: X-Request-ID, X-Agreement-ID and Date are mandatory
+
+o NB: if POST request contains xml body then additionally Content-Type is mandatory
+
+o GET response: X-Request-ID and Date are mandatory
+
+o DELETE: X-Request-ID and Date are mandatory + trackingId in parameters
+
+Parameter
+
+API Key (client_id) is mandatory in all requests. Is used for customer identification on API side.
+
+trackingId is mandatory only for DELETE request
+
+POST -sending requests to the Bank
+
+POST [base-url]/{service-url}?client_id=<API Key>
+
+Request sending parameters refer always to the service.
+
+Request sample: POST https://psd2.api.swedbank.com/partner/v1/sgw/account-statements?client_id=<API Key>
+
+After successful posting of the request, it can return a positive response or error.
+
+Request parameters:
+
+Parameter - API Key (client_id) - Customer identification number on API side. Will be generated during onboarding by Developer Portal
+
+Header X-Request-ID – Message request ID set by the company, which helps to connect request and response data. ID must be unique.
+
+Header X-Agreement-ID – Swedbank Gateway agreement number provided by the bank that uniquely identifies the agreement.
+
+o SGW direct agreement or in case Customer acting via Operator, SGW End user agreement ID must be used (as HTTP header X-Agreement-ID).
+
+Header Date - Date and Time of request
+
+o All dates in the HTTP headers are represented as RFC 1123 Full Dates Tue, 21 May 2019 14:23:49 GMT
+
+o Header Content-Type - Content type header must be set when sending in .xml or .asice body, which guarantees proper UTF-8 encoding of the body
+
+o Example: application/xml; charset=utf-8 or application/octet-stream; charset=utf-8 in case of .asice format
+Request body – .xml or .asice content
+
+NB: General file size limit is 128KB, but there are some endpoints with a file size limit up to 30MB
+
+POST [base-url]/payment-initiations?client_id=*
+POST [base-url]/e-invoices?eInvoiceAgreementId=xx&country=EE/LV/LT&client_id=*
+POST [base-url]/e-invoice-automated-payment-agreements&client_id=*
+POST [base-url]/estonian-value-added-tax-returns?client_id=*
+POST [base-url]/estonian-income-and-social-tax-returns?client_id=*
+POST [base-url]/estonian-employment-registrations?client_id=*
+POST [base-url]/estonian-employments?client_id=*
+Curl example
+`curl --request POST 'https://psd2.api.swedbank.com/partner/v1/sgw/communication-tests?client_id=<API Key>' \
+--cert-type P12
+--cert key.p12:password
+--header 'X-Request-ID: requestId' \
+--header 'X-Agreement-ID: 1234' \
+--header 'Date: Tue, 09 May 2023 11:11:05 GMT \
+--header 'Accept: application/json' \
+--header 'Content-Type: application/xml; charset=utf-8' \
+--data-raw '<?xml version="1.0" encoding="UTF-8"?><Ping><Value>Test</Value></Ping>'`
+Description of fields in request
+Field		Description	
+X-Request-ID	AN(255)	Message request ID set by the customer, which helps to connect request and response data. ID must be unique	1..1
+X-Agreement-ID	(N)	Swedbank Gateway agreement number provided by the bank that uniquely identifies the agreement	1..1
+X-Request-ID	AN	Message request ID set by the customer	1..1
+Date	AN	Date and time of request in RFC 1123 Full dates format e.g. Tue, 21 April 2023 14:23:49 GMT	1..1
+Content-Type	AN	Content type header must be set when sending in xml body, which guarantees proper UTF-8 encoding of the body e.g. application/xml; charset=utf-8	1..0
+API Key (client_id)	AN	Customer identification number (API Key) generated by Developer Portal during application onboarding that uniquely identifies customer application in SGW API.	1..1
+
+GET
+
+By default, always the oldest unread (not deleted) message is returned. The response message is delivered as the response body.
+
+GET [base-url]/messages?client_id=<API Key>
+
+Service url: https://psd2.api.swedbank.com/partner/v1/sgw/messages
+
+Receiving response data from the bank consists of two steps:
+
+Message is received in a response of a GET request.
+After receiving a message, a confirmation must be sent out with a DELETE request.
+If SGW does not receive a confirmation during one hour after the initial GET request, then the response message will be redelivered to the customer on the next GET request.
+
+NB!
+The Swedbank Gateway API is asynchronous messaging.
+GET requests must be implemented with a reasonable frequency towards the SGW service (e.g. if all messages have been received, then next GET should be sent after 1 minute).
+Even though SGW is intended to be a daily online service, then on a periodical implementation the files are to be downloaded in reasonable time (notifications 48h, other files 14 days) otherwise these will be deleted.
+Request
+GET request mandatory:
+
+Header parameters:
+X-Request-ID – Message request ID set by the customer, which helps to connect request and response data. ID must be unique.
+Header Date - Date and time of request
+All dates in the HTTP headers are represented as RFC 1123 Full Dates Tue, 21 May 2019 14:23:49 GMT
+Request parameter:
+API Key (client_id) - Customer identification number on API side. Will be generated during onboarding by Developer Portal
+NB! As response to the GET message will be downloaded all messages addressed to the certificate used for request. If same certificate is used in multiple agreements or as operator certificate, the concrete agreement can be identified by AgreementId.
+
+NB!! If there are no more messages to be received (response HTTP ERROR 204), then it is mandatory to delay next GET request for minimum time of 1 minute.
+
+Request example:
+
+curl --request GET 'https://psd2.api.swedbank.com/partner/v1/sgw/messages?client_id=<API Key>' \
+--cert-type P12
+--cert key.p12:password
+--header 'X-Request-ID: requestId' \
+--header 'Date: Tue, 09 May 2023 11:11:05 GMT \
+--header 'Accept: application/xml'
+Response
+The response contains:
+
+Body – xml content
+Header X-Request-ID – Request ID set by Client with POST request.
+Header X-Tracking-ID – Bank side message ID.
+Header X-Agreement-ID - Swedbank Gateway agreement number provided by the bank
+Header Date - Date and time of response
+trackingId - Bank side provided response trackingId for DELETE message
+PS: In case there is message prepared by Bank (PUSH messages) then X-Request-ID contain the service name that refers to the type of message.
+
+Type	X-Request-ID
+PERIODIC_STATEMENT_CAMT	PeriodicStatement
+MULTIBANK_PERIODIC_STATEMENT	MultibankPeriodicStatement
+CUSTOMER_TRANSACTION_NOTIFICATION	alert
+TRANSACTION_NOTIFICATION_CAMT	alert
+EINVOICE_OPERATOR	E-Invoice for operator
+EINVOICE_CUSTOMER	E-Invoice for buyer
+EINVOICE_APPLICATION_EXPORT	Single E-Invoice Application for seller
+SELLER_CONTRACT_MANAGEMENT	E-Invoice new seller contract export
+POS_REPORT	POSRaport
+STANDING_ORDER_PAYMENT_STATUS_REPORT	Standing order agreement payments for seller
+STANDING_ORDER_AGREEMENT_EXPORT    	Standing order agreements changes for seller
+CUSTOMER_AGREEMENT_MANAGEMENT	CUSTOMER_AGREEMENT_MANAGEMENT
+Description of fields in request and response
+Field		Description	
+X-Request-ID	AN(255)	Message request ID set by the customer (or by Bank in case of PUSH messages), which helps to connect request and response data. ID must be unique	1..1
+X-Agreement-ID	N	Swedbank Gateway agreement number provided by the bank that uniquely identifies the agreement	1..1
+X-Tracking-ID	AN	Bank side message ID	1..1
+Date	AN	Date and time of request/response in RFC 1123 Full dates format e.g. Tue, 21 April 2023 14:23:49 GMT	1..1
+API Key (client_id)	AN	Customer identification number (API Key) generated by Developer Portal during application onboarding that uniquely identifies customer application in SGW API	1..1
+trackingId	AN	Bank side message ID received with the GET response for DELETE message	1..1
+
+DELETE
+
+This step is important, because with that you confirm that message is received and can be deleted from your inbox. Without deletion you can´t receive the next message. For deletion, please use trackingId provided in the message response.
+
+DELETE [base-url]/messages?trackingId=<trackingId>&client_id=<API Key>
+
+Request
+Request parameters:
+
+Parameter trackingId - Bank side message ID received with the GET response
+Parameter client_id - API Key, used in message exchange for customer/Operator identification on API side
+Header X-Request-ID – Message request ID set by the customer, which helps to connect request and response data. ID must be unique.
+Header Date - Date and time of request
+All dates in the HTTP headers are represented as RFC 1123 Full Dates Tue, 21 May 2019 14:23:49 GMT
+Curl example
+curl --request DELETE 'https://psd2.api.swedbank.com/partner/v1/sgw/messages?trackingId=e7929cb4-f31f-11ed-a05b-0242ac120003&client_id=akjdq3789lkhgk347ljbvhz' \
+--cert-type P12
+--cert key.p12:password
+--header 'X-Request-ID: requestId' \
+--header 'Date: Tue, 09 May 2023 11:11:05 GMT \
+--header 'Accept: */*'
+Description of fields in request
+Field		Description	
+trackingId	AN	Bank side message ID	1..1
+client_id (API Key)	AN	Customer identification number (API Key) generated by Developer Portal during application onboarding that uniquely identifies customer application in SGW API	1..1
+X-Request-ID	AN(255)	Message request ID set by the customer, which helps to connect request and response data. ID must be unique	1..1
+Date	AN	Date and time of request in RFC 1123 Full dates format e.g. Tue, 21 April 2023 14:23:49 GMT	1..1
+Response
+The response contains final status of the flow.
+
+HTTP Response codes:
+
+2xx - OK
+
+4xx - Client-side errors. Connection not visible in Bank side.
+
+o Bad request (no X-Request-ID);
+
+o Forbidden (wrong X-Agreement-ID, expired certificates, no certificates etc.).
+
+5xx - Bank side error.
+By error you will see error code with explanation:
+
+{
+  "error": {
+    "code": 400,
+    "timestamp": "2022-11-16T10:03:48.152317387Z",
+    "message": "Message not found",
+    "errors": [
+      {
+        "reason": "invalidArgument",
+        "message": "'trackingId' unknown tracking id"
+      }
+    ]
+  }
+}
+{
+  "error": {
+    "code": 403,
+    "timestamp": "2022-11-16T10:28:43.41182417Z",
+    "message": "no service rights",
+    "errors": [
+      {
+        "reason": "forbidden",
+        "message": "'agreement' no service rights"
+      }
+    ]
+  }
+}
+
+Error handling
+
+To avoid cases when the XML files sent to the bank are not valid, bank strongly recommends validating of XML files on the client side before sending them to the bank.
+
+Validation XSD can be found in SGW tech. page: Estonia, Latvia, Lithuania
+
+Additionally, we recommend not using comments in the beginning of the service XML messages, in front of the header tags for format and service, as it may cause message format and type detection failure.
+
+In case request message maximum file size is exceeded, SGW replies with error “Expected number of transactions in the message is too large”. Please find file size limitation info from "Connection and messaging" chapter or contact the bank in order to find out the current limitation and lower the number of transactions per file to fit the criteria
+
+PS: Communication test doesn’t produce error when service is not activated in client SGW agreement.
+
+There are multiple levels of errors.
+
+Level 1 - PSD2 API level
+Level 2 - SGW API level
+Level 3 - Service related error - covered under chapter Error codes
+In case of request doesn´t reach to SGW service and is rejected by PSD2 Portal, you can see TPPMessage like this:
+
+{"tppMessages" : [{"category" : "ERROR",
+"code" : "CERTIFICATE_INVALID",
+"text" : "No certificate provided in developer portal, in Application setup: "}]
+ResponseError{
+tppMessages{
+category  string
+code	string
+text   	string, maxLength:512
+Enum ERROR:
+[ service_blocked, certificate_invalid, format_error, temporary_unavailable, service_invalid, header_invalid, certificate_expired, certificate_revoked, access_exceeded ]
+}
+In that case please verify if
+Request url is correct
+API key provided in request is correct
+Transport certificate is valid and added to the request
+Your application and certificate are activated by bank employee
+In case of error comes on SGW API level you will get generic api error:
+
+GenericApiError{
+error	ApiError{
+code	integer($int32)
+errors	[Error{
+message	string
+reason	string
+Enum:
+[ invalidArgument, invalidBody, forbidden, missingRequestParameter, invalidRequestParameter, missingRequestHeader, technical, notFound, signingAlreadyInProcess, signingAgreementMissing, signingTimedOut, signingFailed, paymentAlreadyExecuted, paymentSigningExpired ]
+}]
+message	string
+timestamp	string($date-time)
+}
+}
+Example of generic SGW API error message
+
+{
+  "error": {
+    "code": 403,
+    "timestamp": "2022-11-16T10:28:43.41182417Z",
+    "message": "no service rights",
+    "errors": [
+      {
+        "reason": "forbidden",
+        "message": "'agreement' no service rights"
+      }
+    ]
+  }
+}
+
+Error codes
+
+Not all error codes and error descriptions might be listed here. We try our best to keep the following list updated!
+
+PSD2 error codes
+Code	Code field	Description
+400	CERTIFICATE_INVALID	No certificate provided in developer portal in Application setup or Request without MTLS
+400	CERTIFICATE_INVALID	QWAC certificate is waiting for verification, please try in an hour, it's set to validate or no such cert in Developer Portal
+400	FORMAT_ERROR	As QWAC is used for several applications parameter client_id is mandatory
+400	FORMAT_ERROR!	Request body is too large - it's checked for request size
+400	FORMAT_ERROR	Malformed XML structure - body has not correct XML structure/format
+400	FORMAT_ERROR	Unsupported request contentType: {contentType}- if Content-Type header is not one of application/[xml,json, octet/stream]
+400	HEADER_INVALID	Mandatory header is missing, empty or in wrong format: {Header} ({requiredHeaders})
+400	FORMAT_ERROR	Mandatory header "Date" is in future or in past
+400	CERTIFICATE_EXPIRED	Expired QWAC certificate
+400	CERTIFICATE_REVOKED	QWAC certificate revoked
+401	SERVICE_BLOCKED	Endpoint not allowed if provided client_id doesn't exist in Developer Portal or disabled in Developer portal or API not assigned to application
+403	SERVICE_BLOCKED	TPP was blocked - customer application is in blocked state or not activated
+403	SERVICE_BLOCKED	TPP is not registered - provided client_id doesn't exist in Developer portal
+403	SERVICE_BLOCKED	In portal registrated IP does not match Your IP. ({remoteIP} ({allowedIPs}))
+429	ACCESS_EXCEEDED	Reached hour requests limit ({hourLimit})
+429	ACCESS_EXCEEDED	Reached parallel requests limit: ({parallelRequests})
+500	INTERNAL_ERROR	Internal Error
+503	TEMPORARY_UNAVAILABLE	"Planned system maintenance ongoing"
+Payment error codes
+Code	Description
+balanceOfPaymentsCode	Balance of Payments code is missing!
+RemitterIBAN	Remitter IBAN is invalid
+BeneficiaryBankAccount	Beneficiary bank account is invalid!
+BeneficiaryAddress	Beneficiary address is missing!
+ValueDate	Invalid date!
+Currency	Invalid currency!
+BeneficiaryBankCode	Beneficiary bank code is invalid!
+BeneficiaryResidence	Beneficiary residence is invalid!
+DocumentNumber	Document number is missing!
+Amount	Amount is missing or invalid!
+BeneficiaryName	Beneficiary name is missing!
+RemitterPaymentID	Payment ID is missing!
+ValueDateFormat	Value date format is invalid!
+Costs	Costs is incorrect!
+BeneficiaryBankName	Beneficiary bank name is invalid!
+ReferenceNumber	Reference number is invalid!
+Details	Payment details or reference number must be set!
+ReferenceLV	Reference number is not supported in Latvia!
+ReferenceNumberTooLong	The Creditor Reference number is too long!
+InvalidIdentificationType	Invalid Identification type!
+nameMatchIsTooSmall	The account number and the name do not coincide!
+bothDetailsAndCreditorReferenceFilled	Payment details are missing!
+missingDetailsOrReferenceNumber	Payment details or reference number must be set!
+beneficiaryNameTooLong	Beneficiary name is too long!
+intrabankPaymentCannotBeUrgent	Intrabank payment cannot be urgent!
+incorrectFormatOrderingPartyId	Incorrect Ordering Party ID!
+missingOrderingPartyName	Ordering party name is missing!
+incorrectFormatAssigneeId	Incorrect Assignee ID!
+missingAssigneeName	Assignee name is missing!
+domesticPaymentCouldBeOnlyInLocalCurrency	Only local currency is allowed for domestic payments!
+paymentToTheSameAccountIsNotAllowed	Remitter and beneficiary accounts must be different!
+operationWithCurrencyNotAllowed	Operation with this currency is not allowed!
+invalidValueDate	Payment date is not valid for this agreement!
+missingBopCode	Balance of Payments code is missing!
+ERR00010	Non-sufficient funds!
+ERR00104	Non-sufficient funds!
+ERR00112	Non-sufficient funds!
+ERR00596	Non-sufficient funds on remitter account!
+ERR10102	Invalid Swift format for creditor name
+ERR10103	Invalid characters in beneficiary address.
+ERR10105	Foreign payment description contains not accepted characters
+ERR13269	In Beneficiary bank address country is missing
+H0011	Duplicate payment! You have already made a payment with the same data within 24 hours. Payment cancelled!
+OnlyISO20022FormatIsAccepted	Payment format is not supported, only ISO20022 format is accepted!
+invalidInstructionIdentification	Invalid instruction identification!
+invalidUltimateCreditorName	Invalid ultimate creditor name!
+negativeOrZeroAmount	Negative or zero amount!
+invalidBeneficiaryName	Invalid beneficiary name!
+invalidDetails	Invalid details!
+invalidCustomerReference	Invalid customer reference!
+invalidCreditorIdentificationNumber	Invalid creditor identification number!
+invalidDebtorAgentBIC	Invalid debtor agent BIC!
+invalidCreditorAgentBIC	Invalid creditor agent BIC!
+bothDetailsAndCreditorReferenceFilled	Both details and creditor reference filled!
+urgentPaymentsNotAllowedAfterEuroDay	Domestic payment cannot be urgent!
+TransactionNotSupported	Transaction type not supported/authorized on this account.
+InvalidTransactionCurrency	Transaction currency is invalid or missing.
+InvalidAmount	Amount is invalid or missing.
+InvalidBICIdentifier	BIC identifier is invalid or missing. Generic usage if cannot specify between debit or credit account.
+InsufficientFunds	Amount of funds available to cover specified message amount is insufficient.
+DecimalPointsNotCompatibleWithCurrency	Number of decimal points not compatible with the currency.
+BalanceInfoRequest	Balance of payments complementary info is requested.
+InvalidCutOffTime	Associated message, payment information block, or transaction was received after agreed processing cut-off time.
+InvalidPaymentTypeInformation	Payment Type Information is missing or invalid.
+InvalidTransactionCurrency	Transaction currency is invalid or missing.
+TransactionForbidden	Transaction forbidden on this type of account (formerly NoAgreement).
+InvalidCreditorAccountNumber	Creditor account number invalid or missing.
+TooLowAmount	Specified transaction amount is less than agreed minimum.
+TransactionForbidden	Transaction forbidden on this type of account (formerly NoAgreement).
+InvalidCreditorBICIdentifier	Creditor BIC identifier is invalid or missing.
+InvalidChargeBearerCode	Charge bearer code for transaction type is invalid.
+MissingCreditorName	MissingCreditorName
+InvalidCreditorBankIdentifier	Creditor bank identifier is invalid or missing.
+InvalidDate	Invalid date (eg, wrong or missing settlement date).
+RemittanceInformationInvalid	Remittance information structure does not comply with rules for payment type.
+InvalidDebtorIdentificationCode	Debtor or Ultimate Debtor identification code missing or invalid.
+InvalidCreditorIdentificationCode	Creditor or Ultimate Creditor identification code missing or invalid.
+InvalidIdentificationCode	Identification code missing or invalid.Generic usage if cannot specifically identify debtor or creditor.
+Narrative	Reason is provided as narrative information in the additional reason information.
+OrderCancelled	An authorized user has cancelled the order in Business Internet Bank.
+PaymentTypeIsNotAllowedInCreditorBank	Payment cannot be made to this bank!
+H0212	Creditor postal address is incomplete
+Currency Exchange Error codes
+Code	Description
+ExchangeRateNotFound	Currency not found!
+6093	Currency exchange is not permitted!
+6094	Currency exchange is not permitted!
+
+Troubleshooting
+
+In case of problems, please send the following data to your agreed contact person in the bank:
+
+Full request url with all parameters and headers
+
+Agreement-ID, the unique agreement number you are addressing in request
+Transport certificate information (CN, serial number, validity) or public key file
+API Key
+X-Request-ID of the message
+Time when the message was sent
+The response received (response code and body)
+
+Communication test
+
+Client initiated query to receive a ‘pong’ response to a ‘ping’ request. Client can receive multiple responses to a ping request: one with from=”HGW” indicating that the communication is working in general and additionally one reply from each country where the customer has an active agreement (from=”EE/LV/LT”).
+
+Value property from Ping request is returned with Pong response.
+
+Request
+POST 'https://psd2.api.swedbank.com/partner/v1/sgw/communication-tests?client_id=<API Key>
+Communication test request needs to be sent against endpoint: POST [base-url] /communication-tests?client_id=
+
+HTTP header: X-Request-ID, X-Agreement-ID, Date and Content-Type are mandatory
+
+Parameter: client_id (API Key) is mandatory
+
+Example xml request body:
+
+<?xml version="1.0" encoding="UTF-8"?>
+<Ping>
+  <Value>Test</Value>
+</Ping>
+Request URL: https://psd2.api.swedbank.com/partner/v1/sgw/communication-tests?client_id=
+
+The response contains:
+
+Header X-Agreement-ID – Swedbank Gateway unique agreement number
+Header X-Tracking-ID - Bank side message ID
+Header X-Request-ID - Message request ID set by the customer, which helps to connect request and response data. ID must be unique
+Header Date - Date and time of request
+Curl example
+
+`curl --request POST 'https://psd2.api.swedbank.com/partner/v1/sgw/communication-tests?client_id=<API Key>' \
+--cert-type P12
+--cert key.p12:password
+--header 'X-Request-ID: requestId' \
+--header 'X-Agreement-ID: 1234' \
+--header 'Date: Tue, 09 May 2023 11:11:05 GMT \
+--header 'Accept: application/json' \
+--header 'Content-Type: application/xml; charset=utf-8' \
+--data-raw '<?xml version="1.0" encoding="UTF-8"?><Ping><Value>Test</Value></Ping>'`
+Description of fieldsin request
+Field name		Description	
+X-Request-ID	AN(255)	Message request ID set by the customer, which helps to connect request and response data. ID must be unique	1..1
+X-Agreement-ID	(N)	Swedbank Gateway agreement number provided by the bank that uniquely identifies the agreement	1..1
+X-Request-ID	AN	Message request ID set by the customer	1..1
+Date	AN	Date and time of request in RFC 1123 Full dates format e.g. Tue, 21 April 2023 14:23:49 GMT	1..1
+Content-Type	AN	Content type header must be set when sending in xml body, which guarantees proper UTF-8 encoding of the body e.g. application/xml; charset=utf-8	1..1
+client_id (API Key)	AN	Customer identification number (API Key) generated by Developer Portal during application onboarding that uniquely identifies customer application in SGW API.	1..1
+Description of fields in request XML
+| Ping| | | 1..1| | ------ | ------ | ------ || ------ | | Ping/Value| AN (0 – 210)| Something that customer wants to be sent back|| 0..1|
+
+Response
+Request responses can be found from common inbox: GET [base-url]/messages?client_id=
+
+HTTP header: X-Request-ID and Date are mandatory
+Parameter: client_id (API Key) is mandatory
+The response contains:
+
+Body – xml content
+Header X-Request-ID – Request ID set by Client with POST request.
+Header X-Tracking-ID – Bank side message ID.
+Header X-Agreement-ID - Swedbank Gateway agreement number provided by the bank
+Header Date - Date and time of response
+Description of fields in response
+Field name		Description	
+X-Request-ID	AN(255)	Message request ID set by the customer, which helps to connect request and response data. ID must be unique	1..1
+X-Tracking-ID	AN	Bank side message ID	1..1
+X-Agreement-ID	N	Swedbank Gateway agreement number provided by the bank that uniquely identifies the agreement	1..1
+Date	AN	Date and time of request in RFC 1123 Full dates format e.g. Tue, 21 April 202314:23:49 GMT	1..1
+client_id (API Key)	AN	Customer identification number (API Key) generated by Developer Portal during application onboarding that uniquely identifies customer application in SGW API	1..1
+Example response XML
+<?xml version='1.0' encoding='UTF-8'?>
+<B4B xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://swedbankgateway.net/valid/hgw-response.xsd">
+  <Pong from="EE">
+      <Value>Test</Value>
+  </Pong>
+</B4B>
+Description of fields in response XML
+Pong		Description	1..*
+Pong @ from	A(3)	EE/LT/LV/SGW – to show which processor responded	1..1
+Pong/Value	AN(0 – 210)	Value from Ping request	1..1
+
+Account balance and statement
+
+Client initiated query to receive the balance or statement of one specific account listed in SGW agreement on a given time.
+
+Account Balance can be requested with ISO20022 format message camt.060.001.03.
+
+Account statement response format is determined by the customer request format. Supported formats include ISO20022 camt.053.001.02 / camt.052.001.02 (camt.052/camt.053) - responses to the camt.060.001.03 request.
+
+Supported format for Other bank´s account statement is according to the PSD2 framework only ISO20022 message format camt.052.001.02 response to the request camt.060.001.03, not depending on chosen period.
+
+Detailed implementation guidelines for ISO20022 account balance and statement request and response can be found from ISO 20022 Message Implementation Guide on Swedbank Gateway info page in Internet Bank business:
+
+EE: Swedbank Gateway
+
+LV: Swedbank Gateway
+
+LT: Swedbank Gateway
+
+Account Balance
+
+Client initiated query to receive the balance of one specific account listed in SGW agreement on a given time.
+
+"Given time" is the most up to date balance bank can send to customer for the current day. It is also possible to specify a date in the past, in which case SGW returns the end-of-day balance for that day.
+
+The Account number given in the balance request has to correspond to the IBAN standard.
+If account number or agreementId is not specified, there will be one response for each country where an SGW agreement is visible for given transport certificate combination.
+
+Message with AccountNotAllowed exception is returned if account requested is not listed in any of SGW agreements available for given agreement ID.
+
+If account number is not specified, there will be one response for each country where an SGW agreement is visible for given transport certificate combination.
+
+Balances can be requested with ISO20022 format message camt.060.001.03. Examples of XML requests and responses can be found at SGW info page:
+
+EE: Swedbank Gateway - Swedbank
+LV: Swedbank Gateway - Swedbank
+LT: Swedbank Gateway - Swedbank
+PS. SGW direct agreement or in case client acting via Operator, SGW client (end user) agreement ID must be used (as HTTP header X-Agreement-ID).
+
+Request
+Account balance request needs to be sent against endpoint: POST https://psd2.api.swedbank.com/partner/v1/sgw/account-statements?client_id=<API Key>
+
+Request parameters:
+
+Request body - .xml content
+HTTP header: X-Request-ID, X-Agreement-ID, Date and Content-Type are mandatory
+Request parameter: API key is mandatory
+PS. SGW direct agreement or in case client acting via Operator, SGW client (end user) agreement ID must be used (as HTTP header X-Agreement-ID).
+
+Account balance request body xml example can be found from ISO 20022 Message Implementation Guide at SGW info page in iBank under Useful Information.
+
+Example request in ISO20022 camt.060.001.03 format
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns:xsi=http://www.w3.org/2001/XMLSchema-instancexmlns="urn:iso:std:iso:20022:tech:xsd:camt.060.001.03">
+<AcctRptgReq>
+<GrpHdr>
+<MsgId>camt060_balance</MsgId>
+<CreDtTm>2024-03-14T13:00:00</CreDtTm>
+</GrpHdr>
+<RptgReq>
+<ReqdMsgNmId>camt.052.001.02</ReqdMsgNmId>
+<Acct>
+<Id>
+<IBAN>EE062200221055091966</IBAN>
+</Id>
+</Acct>
+<AcctOwnr>
+<Pty/>
+</AcctOwnr>
+<RptgPrd>
+<FrToDt>
+<FrDt>2024-03-13</FrDt>
+<ToDt>2024-03-13</ToDt>
+</FrToDt>
+<FrToTm>
+<FrTm>09:00:00+02:00</FrTm>
+<ToTm>23:59:59+02:00</ToTm>
+</FrToTm>
+<Tp>ALLL</Tp>
+</RptgPrd>
+<ReqdBalTp>
+<CdOrPrtry>
+<Prtry>ONLYBALANCE</Prtry>
+</CdOrPrtry>
+</ReqdBalTp>
+</RptgReq>
+</AcctRptgReq>
+</Document>
+Response
+Request responses can be found from common inbox: GET https://psd2.api.swedbank.com/partner/v1/sgw/messages?client_id=<API Key>
+
+Account balance response will be created according account balance service rules and ISO2022 camt description.
+
+Example response XML in ISO20022 camt.052.001.02 format
+<?xml version="1.0" encoding="utf-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.052.001.02">
+<BkToCstmrAcctRpt>
+<GrpHdr>
+<MsgId>2014031916062828</MsgId>
+<CreDtTm>2014-03-19T16:06:28</CreDtTm>
+</GrpHdr>
+<Rpt>
+<Id>2014031916062828</Id>
+<CreDtTm>2014-03-19T16:06:28</CreDtTm>
+<FrToDt>
+<FrDtTm>2014-03-19T00:00:00</FrDtTm>
+<ToDtTm>2014-03-19T16:06:28</ToDtTm>
+</FrToDt>
+<Acct>
+<Id>
+<IBAN>EE062200221055091966</IBAN>
+</Id>
+<Ccy>EUR</Ccy>
+<Ownr>
+<Nm>FIRMA AS</Nm>
+<PstlAdr>
+<Ctry>EE</Ctry>
+<AdrLine>Metsa 8, Tallinn</AdrLine>
+</PstlAdr>
+<Id>
+<OrgId>
+<Othr>
+<Id>12345124</Id>
+</Othr>
+</OrgId>
+</Id>
+</Ownr>
+<Svcr>
+<FinInstnId>
+<BIC>HABAEE2X</BIC>
+<Nm>Swedbank AS</Nm>
+<PstlAdr>
+<Ctry>EE</Ctry>
+<AdrLine>Liivalaia 8, Tallinn</AdrLine>
+</PstlAdr>
+<Othr>
+<Id>123456789</Id>
+<SchmeNm>
+<Cd>COID</Cd>
+ </SchmeNm>
+</Othr>
+</FinInstnId>
+</Svcr>
+</Acct>
+<Bal>
+<Tp>
+<CdOrPrtry>
+<Cd>ITAV</Cd>
+</CdOrPrtry>
+</Tp>
+<CdtLine>
+<Incl>true</Incl>
+<Amt Ccy="EUR">0.00</Amt>
+</CdtLine>
+<Amt Ccy="EUR">4353697077.05</Amt>
+<CdtDbtInd>CRDT</CdtDbtInd>
+<Dt>
+<Dt>2014-03-19</Dt>
+</Dt>
+</Bal>
+<Bal>
+<Tp>
+<CdOrPrtry>
+<Prtry>RESERVED</Prtry>
+</CdOrPrtry>
+</Tp>
+<Amt Ccy="EUR">20.00</Amt>
+<CdtDbtInd>CRDT</CdtDbtInd>
+<Dt>
+<Dt>2014-03-19</Dt>
+</Dt>
+</Bal>
+<Bal>
+<Tp>
+<CdOrPrtry>
+<Cd>ITBD</Cd>
+</CdOrPrtry>
+</Tp>
+<Amt Ccy="EUR">4353697097.05</Amt>
+<CdtDbtInd>CRDT</CdtDbtInd>
+<Dt>
+<Dt>2014-03-19</Dt>
+</Dt>
+</Bal>
+</Rpt>
+</BkToCstmrAcctRpt>
+</Document>
+
+Account statement
+
+Customer can use this service to request a list of transactions on account in a given period.
+
+The period range can be up to 90 days. If the period also includes current day, the request will be divided to 2 responses (camt.052.001.02 for current day and camt.053.001.02 for past dates) and will be charged – also the service Current Day Account Statement has to be active in SGW agreement.
+
+Account statement is returned in one or more responses with one response containing up to 10 000 transaction records. This is a current limit which might change. Limit can differ based on the format requested.
+
+Response format is determined by the customer request format. Supported formats include ISO20022 camt.053.001.02 / camt.052.001.02 (camt.052/camt.053) - responses to the camt.060.001.03 request. Detailed implementation guidelines for ISO20022 account statement request and response XML can be found from ISO 20022 Message Implementation Guide on Swedbank Gateway info page in Internet Bank business.
+
+The reporting request will be rejected if ToDate is missing.
+
+Additional logic:
+
+RequestedMessageNameIdentification= camt.052.001.02 and FromDate=date in the past and ToDate=date in the past: Error „Mismatch of selected message type and report period“
+RequestedMessageNameIdentification= camt.052.001.02 and FromDate=date in the past and ToDate=today: Send camt.052.001.02 for current day and camt.053.001.02 for past dates
+RequestedMessageNameIdentification= camt.053.001.02 and FromDate=today and ToDate=today: Error „Mismatch of selected message type and report period“
+RequestedMessageNameIdentification= camt.053.001.02 and FromDate=date in the past and ToDate=today: Send camt.052.001.02 for current day and camt.053.001.02 for past dates
+Request
+Account statement request needs to be sent against endpoint: POST https://psd2.api.swedbank.com/partner/v1/sgw/account-statements?client_id=<API Key>
+
+HTTP header: X-Request-ID, X-Agreement-ID, Date and Content-Type are mandatory
+Request parameter: API Keyis mandatory
+Body xml:
+Example request XML in ISO20022 camt.060.001.03 format
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="urn:iso:std:iso:20022:tech:xsd:camt.060.001.03">
+<AcctRptgReq>
+<GrpHdr>
+<MsgId>20233010134226470</MsgId>
+<CreDtTm>2023-10-30T13:42:26</CreDtTm>
+</GrpHdr>
+<RptgReq>
+<Id>20233010134226470</Id>
+<ReqdMsgNmId>camt.053.001.02</ReqdMsgNmId>
+<Acct>
+<Id>
+<IBAN>EE062200221055091966</IBAN>
+</Id>
+</Acct>
+<AcctOwnr>
+<Pty/>
+</AcctOwnr>
+<RptgPrd>
+<FrToDt>
+<FrDt>2023-08-15</FrDt>
+<ToDt>2023-11-11</ToDt>
+</FrToDt>
+<FrToTm>
+<FrTm>00:00:00+02:00</FrTm>
+<ToTm>23:59:59+02:00</ToTm>
+</FrToTm>
+<Tp>ALLL</Tp>
+</RptgPrd>
+</RptgReq>
+</AcctRptgReq>
+</Document>
+Response
+Request responses can be found from common inbox: GET https://psd2.api.swedbank.com/partner/v1/sgw/messages?client_id=<API Key>
+
+Statement response will be created according to account statement service rules in ISO20022 Message Implementation Guide.
+
+Commonly used bank transaction codes
+Latvian codes for Transaction/TypeCode
+Value	Description
+OB	Opening balance
+CB	Closing balance
+K2	Turnover
+T2	Fees amount
+PRV	Internal transfer
+MK	Domestic currency payment
+IEM	Cash lodgement
+IZM	Cash withdrawal
+INB	Incoming transfer
+IZP	Outgoing transfer
+CTX	Payment card transactions
+SOD	Standing order
+EXC	Currency exchange
+CQA	Cashing of a cheque
+KOM	Commission for cash withdrawal/ Commission for a transfer/ Cheques commission
+DKA	Deposit or escrow account opening
+DPL	Deposit breach or deal settlement
+AUT	End of deposit
+AIA	Accrued interest payment into account
+AZA	Loan repayment
+SEC	Securities operations
+TBP	T-bill purchase
+TBC	T-bill commission
+7DN	Amount booking
+IKS	Cash delivery
+Estonian codes for Transaction/TypeCode
+Value	Description
+TT	Service charge - indicating that the transaction was Bank's service fee
+MK	Domestic payment order - i.e. regular payment inside the value country
+MV	International payment order
+MP	Consolidated payment
+M	Other charges
+K	Card transaction
+X	Currency transaction
+I	Interest
+PT	Standing order service charges
+MD	Deposits
+S	Cash operation
+Lithuanian codes for Transaction/TypeCode
+Value	Description
+AS	Opening balance
+LS	Closing balance
+K1	Daily turnover
+K2	Account turnover over the specified period
+MK	Payment orders within the bank and between banksincorporated in Lithuania, in LTL and currency
+DP	Debit orders and collections
+MV	International payment orders
+S	Cash operation
+IM	Payments
+IMG	Payments in cash in a branch
+IMB	Payments in a branch (transfer)
+IME	Payments via Internet bank
+MD	Operation related to the deposit
+MP	Mass payment
+DD	Direct debit operation
+X	Currency conversion
+K	Card operation
+TS	Operations with Bank, Traveller's Cheques
+M	Interest, manual debiting and crediting operations
+I	Interest, loan interest, overdrafts
+AI	Accrued interest
+PV	Value added tax
+TT, TT1-TT10	Charges
+TT11	Operation related to the loan
+TT12	Information on accounts, document processing and sending
+TT13	Direct debit fees
+TT14	Account maintenance fee, payment fee
+T2	Total charges
+G	Total charges
+PT	Charge for regular payment order
+CTX	Payments via ATM (automated teller machines)
+SMS	Payment via SMS (mobile bank)
+S1	Balance
+BL	Bank link payments
+
+Periodic statement
+
+It is possible for a customer to get an account statement automatically according to global schedule bank is using for all regular statements (this is once per day and bank will try to send it before midday).
+
+Statement will be generated for previous day from 00:00 until 24:00.
+If no transactions are made on that day, empty statement with just balance information will be generated by default. But customer can also specify in the service agreement, that statement without transactions is not generated.
+Periodic statement is sent in one or more responses with one response containing up to 10 000 transaction records. This is a current limit which might change. Limit can differ based on the format selected in the SGW agreement.
+Supported format is ISO20022 camt.053.001.02.
+Every statement is tied to given SGW agreement based on Agreement ID.
+Request
+There is no POST request – bank is generating these messages based on SGW agreement details.
+
+Response
+Generated periodical statement can be found from common inbox: GET https://psd2.api.swedbank.com/partner/v1/sgw/messages?client_id=<API Key>
+
+HTTP header: X-Request-ID and Date are mandatory
+Request parameter API Key is mandatory
+The response contains:
+
+Body – xml file
+Header X-Request-ID – Request ID set by the Bank (PeriodicStatement).
+Header X-Tracking-ID – Bank side message ID.
+Header X-Agreement-ID - Swedbank Gateway agreement number provided by the bank
+Header Date - Date and time of response
+Statement response will be created according account statement service rules and ISO2022 camt description.
+
+In xml start date is always previous day. End date is always current banking day. Otherwise response is just like an Account statement service response. If there were no transactions since previous statement's last operation, an empty statement with opening and closing balances is sent.
+
+Example response XML in ISO20022 camt.053.001.02 format
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+<BkToCstmrStmt>
+<GrpHdr>
+<MsgId>2023012009455832690001</MsgId>
+<CreDtTm>2023-01-20T03:06:06</CreDtTm>
+</GrpHdr>
+<Stmt>
+<Id>945583269-EUR-1</Id>
+<ElctrncSeqNb>945583269</ElctrncSeqNb>
+<CreDtTm>2023-01-20T03:06:06</CreDtTm><FrToDt>
+<FrDtTm>2023-01-19T00:00:00</FrDtTm>
+<ToDtTm>2023-01-19T23:59:59</ToDtTm>
+</FrToDt>
+<Acct>
+<Id>
+<IBAN>EE062200221055091966</IBAN>
+</Id>
+<Ccy>EUR</Ccy>
+<Ownr>
+<Nm>FIRMA AS</Nm>
+<PstlAdr>
+<Ctry>EE</Ctry>
+<AdrLine>Metsa 8, Tallinn</AdrLine>
+</PstlAdr>
+<Id>
+<OrgId>
+<Othr>
+<Id>12345124</Id>
+</Othr>
+</OrgId>
+</Id>
+</Ownr>
+<Svcr>
+<FinInstnId>
+<BIC>HABAEE2X</BIC>
+<Nm>Swedbank AS</Nm>
+<PstlAdr>
+<Ctry>EE</Ctry>
+<AdrLine>>Liivalaia 8, Tallinn</AdrLine>
+</PstlAdr>
+<Othr>
+<Id>123456789</Id>
+<SchmeNm>
+<Cd>COID</Cd>
+</SchmeNm>
+</Othr>
+</FinInstnId>
+</Svcr>
+</Acct>
+<Bal>
+<Tp>
+<CdOrPrtry>
+<Cd>OPBD</Cd>
+</CdOrPrtry>
+</Tp>
+<CdtLine>
+<Incl>false</Incl>
+</CdtLine>
+<Amt Ccy="EUR">314.29</Amt>
+<CdtDbtInd>CRDT</CdtDbtInd>
+<Dt>
+<Dt>2023-01-19</Dt>
+</Dt>
+</Bal>
+<Bal>
+<Tp>
+<CdOrPrtry>
+<Cd>CLBD</Cd>
+</CdOrPrtry>
+</Tp>
+<Amt Ccy="EUR">318.03</Amt>
+<CdtDbtInd>CRDT</CdtDbtInd>
+<Dt>
+<Dt>2023-01-19</Dt>
+</Dt>
+</Bal>
+<TxsSummry>
+<TtlCdtNtries>
+<NbOfNtries>0</NbOfNtries>
+<Sum>0.00</Sum>
+</TtlCdtNtries>
+<TtlDbtNtries>
+<NbOfNtries>1</NbOfNtries>
+<Sum>0.26</Sum>
+</TtlDbtNtries>
+</TxsSummry>
+<Ntry>
+<NtryRef>2023011900093512-1</NtryRef>
+<Amt Ccy="EUR">0.26</Amt>
+<CdtDbtInd>DBIT</CdtDbtInd>
+<Sts>BOOK</Sts>
+<BookgDt>
+<Dt>2023-01-19</Dt>
+</BookgDt>
+<ValDt>
+<Dt>2023-01-19</Dt>
+</ValDt><AcctSvcrRef>2023011900093512-1</AcctSvcrRef>
+<BkTxCd>
+<Domn>
+<Cd>ACMT</Cd>
+<Fmly>
+<Cd>MDOP</Cd>
+<SubFmlyCd>CHRG</SubFmlyCd>
+</Fmly>
+</Domn>
+<Prtry>
+<Cd>TT</Cd>
+<Issr>Swedbank AB</Issr>
+</Prtry></BkTxCd>
+<NtryDtls>
+<TxDtls>
+<Refs>
+<AcctSvcrRef>2023011900093512-1</AcctSvcrRef>
+</Refs>
+<AmtDtls>
+<TxAmt>
+<Amt Ccy="EUR">0.26</Amt>
+</TxAmt>
+</AmtDtls>
+<RltdPties>
+</RltdPties>
+<RmtInf>
+<Ustrd>Payment details+reference 130 symbols max</Ustrd>
+</RmtInf>
+</TxDtls>
+</NtryDtls>
+</Ntry>
+</Stmt>
+</BkToCstmrStmt>
+</Document>
+Description of fields in XML you can find from ISO2022 camt description.
+
+Other Bank's account statement
+
+This service is provided in accordance with the rules of the PSD2 framework regulation and service availability is depending on another service provider´s API´s accessibility and only request based/REST API.
+
+To see other bank´s accounts via Gateway channel Customer/Operator End Client need provide consent via Swedbank Internet bank for business.
+
+Customer can use this service to request a list of transactions of one specific account on another bank (example domestic SEB) in a given period.
+
+Account statement is returned in one or more responses with one response containing up to 1000 transaction records (pagination apply according to ISO 20022 standard). This is a current limit which might change.
+
+Supported format is according the PSD2 framework only ISO20022 message format camt.052.001.02 response to the request camt.060.001.03 not depending on chosen period.
+
+According the PSD2 framework period range can be up to 180 days.
+
+Detailed implementation guidelines for account statement request and response can be found at SGW info pageISO2022 Message Implementation Guide.
+
+Request
+Other Bank´s account statement request needs to be sent against endpoint: POST https://psd2.api.swedbank.com/partner/v1/sgw/account-statements?client_id=<API Key>
+
+Request rules are similar to regular account statement.
+
+HTTP header: X-Request-ID, X-Agreement-ID, Date and Content-Type are mandatory
+Request parameter API Key is mandatory
+PS. SGW direct agreement or in case client acting via Operator, SGW client (end user) agreement ID must be used (as HTTP header X-Agreement-ID).
+
+Body xml:
+Example request XML in ISO20022 camt.060.001.03 format
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="urn:iso:std:iso:20022:tech:xsd:camt.060.001.03">
+<AcctRptgReq>
+<GrpHdr>
+<MsgId>20133010134226470</MsgId>
+<CreDtTm>2013-10-30T13:42:26</CreDtTm>
+</GrpHdr>
+<RptgReq>
+<Id>20133010134226470</Id>
+<ReqdMsgNmId>camt.053.001.02</ReqdMsgNmId>
+<Acct>
+<Id>
+<IBAN>EE062200221055091966</IBAN>
+</Id>
+</Acct>
+<AcctOwnr>
+<Pty/>
+</AcctOwnr>
+<RptgPrd>
+<FrToDt>
+<FrDt>2013-08-15</FrDt>
+<ToDt>2013-11-11</ToDt>
+</FrToDt>
+<FrToTm>
+<FrTm>00:00:00+02:00</FrTm>
+<ToTm>23:59:59+02:00</ToTm>
+</FrToTm>
+<Tp>ALLL</Tp>
+</RptgPrd>
+</RptgReq>
+</AcctRptgReq>
+</Document>
+Response
+Request responses can be found from common inbox: GET https://psd2.api.swedbank.com/partner/v1/sgw/messages?client_id=<API Key>
+
+Statement response will be created according account statement service rules and ISO2022 camt description for message format camt.052.001.02.
+
+In case of error you will get as response ACCOUNTNOTALLOWED exception is returned if account requested has no valid consent available for given customer.
+
+Example response XML in ISO20022 camt.052.001.02 format
+<?xml version='1.0' encoding='UTF-8'?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.052.001.02">
+ <BkToCstmrAcctRpt>
+ <GrpHdr>
+ <MsgId>messageId</MsgId>
+ <CreDtTm>2020-10-07T10:54:24</CreDtTm>
+ </GrpHdr>
+ <Rpt>
+ <Id>id</Id>
+ <CreDtTm>2020-10-07T10:54:24</CreDtTm>
+ <FrToDt>
+ <FrDtTm>2020-10-05T00:00:00</FrDtTm>
+ <ToDtTm>2020-10-05T23:59:59</ToDtTm>
+ </FrToDt>
+ <Acct>
+ <Id>
+ <IBAN>EE479243815346847962</IBAN>
+ </Id>
+ </Acct>
+ <Ntry>
+ <Amt Ccy="EUR">1.00</Amt>
+ <CdtDbtInd>DBIT</CdtDbtInd>
+ <Sts>BOOK</Sts>
+ <BookgDt>
+ <Dt>2020-10-05</Dt>
+ </BookgDt>
+ <ValDt>
+ <Dt>2020-10-05</Dt>
+ </ValDt>
+ <BkTxCd/>
+ <NtryDtls>
+ <TxDtls>
+ <Refs>
+ <EndToEndId>NOTPROVIDED</EndToEndId>
+ </Refs>
+ <AmtDtls>
+ <TxAmt>
+ <Amt Ccy="EUR">1.00</Amt>
+ </TxAmt>
+ </AmtDtls>
+ <RltdPties>
+ <Cdtr>
+ <Nm>Tomas Creditor</Nm>
+ </Cdtr>
+ <CdtrAcct>
+ <Id>
+ <IBAN>EE168938346545967075</IBAN>
+ </Id>
+ </CdtrAcct>
+ </RltdPties>
+ <RmtInf>
+ <Ustrd>Short Msg</Ustrd>
+ </RmtInf>
+ </TxDtls>
+ </NtryDtls>
+ <AddtlNtryInf>4cab9b91-8877-4b26-ad98-21db21b3aa2d</AddtlNtryInf>
+ </Ntry>
+ <Ntry>
+ <Amt Ccy="EUR">1.00</Amt>
+ <CdtDbtInd>CRDT</CdtDbtInd>
+ <Sts>BOOK</Sts>
+ <BookgDt>
+ <Dt>2020-10-05</Dt>
+ </BookgDt>
+ <ValDt>
+ <Dt>2020-10-05</Dt>
+ </ValDt>
+ <BkTxCd/>
+ <NtryDtls>
+ <TxDtls>
+ <Refs>
+ <EndToEndId>NOTPROVIDED</EndToEndId>
+ </Refs>
+ <AmtDtls>
+ <TxAmt>
+ <Amt Ccy="EUR">1.00</Amt>
+ </TxAmt>
+ </AmtDtls>
+ <RltdPties>
+ <DbtrAcct>
+ <Id>
+ <IBAN>EE168938346545967075</IBAN>
+ </Id>
+ </DbtrAcct>
+ </RltdPties>
+ <RmtInf>
+ <Ustrd>Short Msg</Ustrd>
+ </RmtInf>
+ </TxDtls>
+ </NtryDtls>
+ <AddtlNtryInf>3e4dfa2e-b793-48b8-a724-3e5e5e8eb39d</AddtlNtryInf>
+ </Ntry>
+ </Rpt>
+ </BkToCstmrAcctRpt>
+</Document>
+
+Other bank's periodical statement
+
+It is possible for a customer to get another bank´s account periodic statement automatically according to global schedule bank is using for all Swedbank regular periodical statements sending via gateway channel (this is once per day during the night and bank will try to send it automatically as push messages). Statement will be generated for previous day from 00:00 until 24:00. If no transactions are made on that day, empty statement with just balance information will be generated by default.
+
+Customer can use this service to get a list of transactions of one specific bank and exact account from another bank.
+
+Periodic statement is sent in one response by account with one response containing up to 1000 latest transaction records (pagination don´t apply). This is a current limit which might change in future.
+
+Supported format according to the ISO 20022 for periodical statement sending is camt.053.001.02.
+
+Request
+There is no request – bank is generating these messages based on SGW agreement setup.
+
+Response
+Other Bank´s account periodical statement messages can be found from common inbox: GET [base-url]/messages?client_id=<API Key>
+
+HTTP header:
+
+X-Request-ID and Date are mandatory
+Request parameter API Key is mandatory
+The response contains:
+
+Body – xml file
+Header X-Request-ID – Request ID set by the Bank (MultibankPeriodicStatement).
+Header X-Tracking-ID – Bank side message ID.
+Header X-Agreement-ID - Swedbank Gateway agreement number provided by the bank
+Header Date - Date and time of response
+Response camt.053.001.02 body .xml is similar for regular periodic statement. In xml start date is always previous day. End date is always current banking day. Otherwise, response is just like an Account statement service response. If there were no transactions since previous statement's last operation, an empty statement with opening and closing balances is sent.
+
+Example response XML in ISO20022 camt.053.001.02 format
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+<BkToCstmrStmt>
+<GrpHdr>
+<MsgId>2023012009455832690001</MsgId>
+<CreDtTm>2023-01-20T03:06:06</CreDtTm>
+</GrpHdr>
+<Stmt>
+<Id>945583269-EUR-1</Id>
+<ElctrncSeqNb>945583269</ElctrncSeqNb>
+<CreDtTm>2023-01-20T03:06:06</CreDtTm><FrToDt>
+<FrDtTm>2023-01-19T00:00:00</FrDtTm>
+<ToDtTm>2023-01-19T23:59:59</ToDtTm>
+</FrToDt>
+<Acct>
+<Id>
+<IBAN>EE062200221055091966</IBAN>
+</Id>
+<Ccy>EUR</Ccy>
+<Ownr>
+<Nm>FIRMA AS</Nm>
+<PstlAdr>
+<Ctry>EE</Ctry>
+<AdrLine>Metsa 8, Tallinn</AdrLine>
+</PstlAdr>
+<Id>
+<OrgId>
+<Othr>
+<Id>12345124</Id>
+</Othr>
+</OrgId>
+</Id>
+</Ownr>
+<Svcr>
+<FinInstnId>
+<BIC>HABAEE2X</BIC>
+<Nm>Swedbank AS</Nm>
+<PstlAdr>
+<Ctry>EE</Ctry>
+<AdrLine>>Liivalaia 8, Tallinn</AdrLine>
+</PstlAdr>
+<Othr>
+<Id>123456789</Id>
+<SchmeNm>
+<Cd>COID</Cd>
+</SchmeNm>
+</Othr>
+</FinInstnId>
+</Svcr>
+</Acct>
+<Bal>
+<Tp>
+<CdOrPrtry>
+<Cd>OPBD</Cd>
+</CdOrPrtry>
+</Tp>
+<CdtLine>
+<Incl>false</Incl>
+</CdtLine>
+<Amt Ccy="EUR">314.29</Amt>
+<CdtDbtInd>CRDT</CdtDbtInd>
+<Dt>
+<Dt>2023-01-19</Dt>
+</Dt>
+</Bal>
+<Bal>
+<Tp>
+<CdOrPrtry>
+<Cd>CLBD</Cd>
+</CdOrPrtry>
+</Tp>
+<Amt Ccy="EUR">318.03</Amt>
+<CdtDbtInd>CRDT</CdtDbtInd>
+<Dt>
+<Dt>2023-01-19</Dt>
+</Dt>
+</Bal>
+<TxsSummry>
+<TtlCdtNtries>
+<NbOfNtries>0</NbOfNtries>
+<Sum>0.00</Sum>
+</TtlCdtNtries>
+<TtlDbtNtries>
+<NbOfNtries>1</NbOfNtries>
+<Sum>0.26</Sum>
+</TtlDbtNtries>
+</TxsSummry>
+<Ntry>
+<NtryRef>2023011900093512-1</NtryRef>
+<Amt Ccy="EUR">0.26</Amt>
+<CdtDbtInd>DBIT</CdtDbtInd>
+<Sts>BOOK</Sts>
+<BookgDt>
+<Dt>2023-01-19</Dt>
+</BookgDt>
+<ValDt>
+<Dt>2023-01-19</Dt>
+</ValDt><AcctSvcrRef>2023011900093512-1</AcctSvcrRef>
+<BkTxCd>
+<Domn>
+<Cd>ACMT</Cd>
+<Fmly>
+<Cd>MDOP</Cd>
+<SubFmlyCd>CHRG</SubFmlyCd>
+</Fmly>
+</Domn>
+<Prtry>
+<Cd>TT</Cd>
+<Issr>Swedbank AB</Issr>
+</Prtry></BkTxCd>
+<NtryDtls>
+<TxDtls>
+<Refs>
+<AcctSvcrRef>2023011900093512-1</AcctSvcrRef>
+</Refs>
+<AmtDtls>
+<TxAmt>
+<Amt Ccy="EUR">0.26</Amt>
+</TxAmt>
+</AmtDtls>
+<RltdPties>
+</RltdPties>
+<RmtInf>
+<Ustrd>Payment details+reference 130 symbols max</Ustrd>
+</RmtInf>
+</TxDtls>
+</NtryDtls>
+</Ntry>
+</Stmt>
+</BkToCstmrStmt>
+</Document>
+
+Description of fields in XML you can find from ISO2022 camt description.
+
+Currency Exchange
+
+Customer can use Currency exchange service to request currency exchange on given account. It is possible to specify worst acceptable rates for both currencies in currency exchange request and SGW will send error if any of rates offered by bank is not good enough to match them.
+
+SGW will also send error in cases when:
+
+there are not enough funds in sell currency on account
+transactions are disabled in bank information system
+given BIC does not belong to Swedbank.
+NB: Currency exchange service similarly to payments service requires that request file is signed at least by one user with Signature certificate. User Signature certificates define users and their access rights to the accounts that currency exchange is made from.
+
+Client must establish daily and monthly limits for each user who is permitted to make transactions (such as payment and currency exchange). Client´s daily and/or monthly limits extent to the all the users and it is mandatory to set if payment signing is in use in client ERP system.
+
+Request
+Currency exchange request needs to be sent against endpoint: POST https://psd2.api.swedbank.com/partner/v1/sgw/currency-exchanges?client_id=<API Key>
+
+HTTP header: X-Request-ID, X-Agreement-ID, Date and Content-Type are mandatory
+Request parameter API Key is mandatory
+Body:
+Example request xml
+<?xml version="1.0" encoding="UTF-8"?>
+<CurrencyExchangeRequest>
+<BIC>HABAEE2X</BIC>
+<IBAN>EE922200221010214144</IBAN>
+<Buy>
+<Currency>USD</Currency>
+<Amount>2500</Amount>
+<Rate>1.0417</Rate>
+</Buy>
+<Sell>
+<Currency>EUR</Currency>
+<Rate>1.0000</Rate>
+</Sell>
+</CurrencyExchangeRequest>
+Description of fields in request XML
+ExchangeRateRequest		Root element of request document	
+BIC	AN (8)	Code of bank that should respond (HABAEE2X for Estonian, HABALV2X for Latvian and HABALT2X for Lithuanian branch)	1..1
+IBAN	AN (4 – 35)	Account number where currency exchange is performed	1..1
+Buy/Currency	A (3)	Currency that customer wishes to buy	1..1
+Buy/Amount	N	Amount that customer wishes to buy. Has to be empty when sell amount is given, is calculated from sell amount then	0..1
+Buy/Rate	N	When given, bank will perform exchange only if rate offered by bank is same or better than this	0..1
+Sell/Currency	A (3)	Currency that customer wishes to sell.	1..1
+Sell/Amount	N	Amount that customer wishes to sell. Has to be empty when buy amount is given and is calculated from buy amount then	0..1
+Sell/Rate	N	When given, bank will perform exchange only if rate offered by bank is same or better than this	0..1
+When currency exchange is performed successfully the response contains rates used and bank reference code.
+
+Response
+Request responses can be found from common inbox: GET https://psd2.api.swedbank.com/partner/v1/sgw/messages/messages?client_id=<API Key>
+
+HTTP header: X-Request-ID and Date are mandatory
+Request parameter API Key is mandatory
+Body:
+Example response XML
+<?xml version="1.0" encoding="UTF-8"?>
+<B4B xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:noNamespaceSchemaLocation="http://swedbankgateway.net/valid/hgw-response.xsd">
+<CurrencyExchangeResponse>
+<BIC>HABAEE2X</BIC>
+<IBAN>EE562200221008103199</IBAN>
+<BankReference>2007070200000195</BankReference>
+<Buy>
+<Currency>USD</Currency>
+<Amount>2500.00</Amount>
+<Rate>1.0417</Rate>
+</Buy>
+<Sell>
+<Currency>EUR</Currency>
+<Amount>2399.92</Amount>
+<Rate>1.0000</Rate>
+</Sell>
+</CurrencyExchangeResponse>
+</B4B>
+Description of fields in response XML
+ExchangeRateResponse		Container element of response	
+BIC	AN (8)	Code of bank responding	1..1
+IBAN	AN (4 – 35)	Account number where currency exchange is performed	1..1
+BankReference	N (16)	Bank reference for operation	1..1
+Buy/Currency	A (3)	Currency that customer bought	1..1
+Buy/Amount	N	Amount that customer bought	1..1
+Buy/Rate	N		1..1
+Sell/Currency	A (3)	Currency that customer sold	1..1
+Sell/Amount	N	Amount that customer sold	1..1
+Sell/Rate	N		1..1
+ExchangeRateType	A	Transfer	1..1
+ExchangeRateInfo		Container element for currencies listing in ExchangeRateResponse element	1..1
+
+Currency Exchange Rates
+
+Customer can use Exchange rate service to request current day currency exchange rates from different countries in Swedbank. SGW is providing currency rates of local central bank (current rate and history) and currency exchange on account (current rate and history). It is possible to query rates for one, several or all rated currencies.
+
+Request
+Currency exchange rates request needs to be sent against endpoint: POST https://psd2.api.swedbank.com/partner/v1/sgw/currency-exchange-rates?client_id=<API Key>
+
+HTTP header: X-Request-ID, X-Agreement-ID, Date and Content-Type are mandatory
+Request parameter API Key is mandatory
+Body request example xml
+Example request xml
+<?xml version="1.0" encoding="UTF-8"?>
+<ExchangeRateRequest>
+<BIC>HABAEE2X</BIC>
+<ExchangeRateType>Transfer</ExchangeRateType>
+<StartDate>2024-06-30</StartDate>
+<EndDate>2024-06-30</EndDate>
+<Currencies>
+<Currency>USD</Currency>
+<Currency>NOK</Currency>
+</Currencies>
+</ExchangeRateRequest>
+Description of fields in request XML
+ExchangeRateRequest		Root element of request document	1..1
+BIC	AN (8)	Code of bank that should respond (HABAEE2X for Estonian, HABALV2X for Latvian and HABALT2X for Lithuanian branch)	1..1
+ExchangeRateType	A	Transfer/Central	1..1
+StartDate	D	If not given, current banking day is used	0..1
+EndDate	D	If not given, current banking day is used	0..1
+Currencies		Container element for currencies listing. If not given, all allowed currencies are listed in response	0..1
+Currencies/Currency	A (3)		1..*
+Response
+Request responses can be found from common inbox: GET https://psd2.api.swedbank.com/partner/v1/sgw/messages?client_id=<API Key>
+
+HTTP header: X-Request-ID and Date are mandatory
+Request parameter API Key is mandatory
+Error message is sent as response if period requested is in future, BIC of wrong bank is given or if requested transaction type is not allowed for some of given currencies. Response data is ordered by currency code and rate date. In case of central bank rates (ExchangeRateType is Central in request XML), buy and sell rates for currency are same.
+
+Example response XML
+<?xml version="1.0" encoding="UTF-8"?>
+<B4B xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:noNamespaceSchemaLocation="http://swedbankgateway.net/valid/hgw-response.xsd">
+ <ExchangeRateResponse>
+ <BIC>HABAEE2X</BIC>
+ <ExchangeRateType>Transfer</ExchangeRateType>
+ <ExchangeRateInfo BaseCurrency="EUR">
+ <CurrencyInfo Date="2024-06-30">
+ <Currency>NOK</Currency>
+ <Buy>11.77100</Buy>
+ <Sell>11.53600</Sell>
+ </CurrencyInfo>
+  <CurrencyInfo Date="2024-06-30">
+ <Currency>USD</Currency>
+ <Buy>1.06510</Buy>
+ <Sell>1.04170</Sell>
+ </CurrencyInfo>
+  </ExchangeRateInfo>
+ </ExchangeRateResponse>
+</B4B>
+Description of fields in response XML
+B4B/ ExchangeRateResponse		Container element for response	
+BIC	AN (8)	Code of bank responding	1..1
+ExchangeRateType	A	Transfer/Central	1..1
+ExchangeRateInfo		Container element for currencies listing in ExchangeRateResponse element.	1..1
+ExchangeRateInfo @ BaseCurrency	A(3)	Currency against what rates is given by bank is contained in BaseCurrency attribute.	1..1
+CurrencyInfo		Container element for currency info in ExchangeRateInfo element	0..*
+CurrencyInfo @ Date	D	Date parameter of CurrencyInfo element.	1..1
+CurrencyInfo/Currency	A(3)		1..1
+CurrencyInfo/Buy	N	Bank buys at this rate	1..1
+CurrencyInfo/Sell	N	Bank sells at this rate	1..1
+
+Payment 
+
+Payment is a customer-initiated query. Customer can send one or more payments with one request file. Payment request is sent in one XML file. Swedbank Gateway responds with one or more status reports as payments are being processed.
+
+Customer's information system must be ready to split one payment request file into several smaller request files in case the original request file size exceeds the current maximum incoming message file size set in the channel. Keep in mind that different formats produce different size files per same amount of transactions!
+
+There are 3 possibilities to sign/confirm payment(s):
+
+Accept payments in the Internet Bank for Business Clients in the list of payments.
+Payment signing in Client's ERP.
+Payment signing via Payment signing API
+The second and third possibility requires adding users to SGW agreement.
+
+Based on European Union´s SEPA regulation only ISO20022 format is supported. Supported is ISO20022 format pain.001.001.09 messages with according to pain.002.001.10 response messages.
+
+Currently, we also support pain.001.001.03 and pain.002.001.03 in parallel until November 15th 2026. Therefore, if you continue using pain.001.001.03 and pain.002.001.03 today, please consider that some additional development work will be required in the future for pain.001.001.09 and pain.002.001.10.
+
+Detailed implementation guidelines for supported formats and validation XSDs can be found at ISO20022 Description for Payments on Swedbank Gateway product page:
+
+EE: https://www.swedbank.ee/business/d2d/ebanking/gateway
+LV: https://www.swedbank.lv/business/d2d/ebanking/gateway?language=ENG
+LT: https://www.swedbank.lt/business/d2d/ebanking/gateway?language=ENG
+Limits
+SGW agreement enables setting specific limits for payments that every transaction is checked against:
+
+client's daily limit (reset every midnight);
+client's monthly limit (reset at midnight on the first of every month);
+user´s daily limit (reset every midnight);
+user´s monthly limit (reset at midnight on the first of every month)
+Client must establish daily and monthly limits for each user who is permitted to make transactions (such as payment and currency exchange). Client´s daily and/or monthly limits extent to the all the users and it is mandatory to set if payment signing is in use in client ERP system.
+
+If the User exceeds the Daily Limit and/or the Monthly Limit, the Bank does not perform the payment orders prepared by the User. If the Client's Daily and/or Monthly Limit are exceeded, the Bank will not perform payment orders submitted hereunder.
+
+Rules of counting the Limits
+Limits are defined in local currency and payment amount is checked against them after being converted into local currency using central bank rate.
+If the limits specified for the specific Account differ from the limits specified in the Agreement for all accounts of the Client, the limits specified for the specific Account shall prevail.
+In case transaction must be confirmed by two Users (double acceptance condition), payment sum is always deducted from the second accepters' limits.
+The limits shall not be applied, where:
+the funds are transferred between the Client's accounts (belonging to the same company within the Bank);
+the Client buys or sells currency (Currency Exchange);
+the payment order must be accepted by second Users, in which case the limits shall not be applied to the first signer;
+conclusion of agreements, except when the Bank decides to limit certain conclusion of agreements because of security reasons or other important reasons.
+Double acceptance condition
+Transactions to be accepted by two user/persons
+For each user it is possible to set specific double acceptance condition per account/transaction type. Double acceptance condition means that transaction is accepted by Swedbank for processing only if two accepters with appropriate rights have signed the payment file and the limits set for the last signer (i.e. usable daily and monthly limit) are enough to cover the payment. If a certain sum is entered to double acceptance filter starting from Sum, then the second signature is required only for payments equal to/exceeding that sum. Signature container file with payment request XML can include many payments in file and multiple signatures. Further checks will be done:
+
+If multiple users have signed payment file request, then after sending via SGW will check double acceptance condition fulfilment and limits of users in the order of signatures - earliest (time-wise) first.
+If first signer has no double acceptance required for unique payment inside signature container for account involved, and all limit checks are successful, then further signatures are ignored.
+If first signature has double acceptance required for unique payment inside signature container for account involved, SGW checks next signature - if that one does not have double acceptance required for that account, the payment will be processed.
+If both signatures have double acceptance required for the account, they will be checked for limits. If no user has enough available limit left for given payment, that payment will fail with error code showing whether it was daily limit or monthly limit that was not enough (daily limit is checked first).
+SGW will repeat the cycle described (points 1-3) per each contained payment through signatures in order of signing until double acceptance condition is fulfilled by 2 signatures OR a signature without a double acceptance requirement with enough available limit is found. Double accept limit is validated on file level, although monitoring single transactions in the file eg payments from that amount on need to have second signer. But as signature can be given only to the file thus to all payments in the file, even if only one payment is bigger, the file will be rejected. General limits as daily and monthly limit are accumulating and deducted from the second signer if the first signer second payment or general payment limit are not sufficient.
+
+Duplicity check
+If payment with same data for fields:
+
+Data	Field in ISO 20022 MIG for payment initiation
+Beneficiary account	CreditorAccount/Identification/IBAN -> DbtrAcct/Id/IBAN
+Remitter account	DebtorAccount/Identification/IBAN -> DbtrAcct/Id/IBAN
+Payment amount	InstructedAmount -> InstdAmt
+Currency	InstructedAmount -> Ccy
+Beneficiary Reference Number	Reference -> Ref
+Payment Details	Unstructured -> Ustrd
+is received by SGW within 24 hours, then channel marks it automatically as duplicate payment and it will be additionally verified. After that the bank sends final status of payments (accepted ACSC or rejected RJCT). For optional fields such as Payment details and Beneficiary Reference Number „same data „means
+
+a) filled for both and with equal value OR
+
+b) not filled for both.
+
+Swedbank ISO2022 Description for Payments you can find in Swedbank gateway page.
+
+Payment forwarding to iBank
+
+This service enables send prepared payment xml file (not signed) from customer ERP to Swedbank iBank. Payment signing will happen in iBank.
+
+This option assumes that service for payment file sending via SGW for signing in Internet Bank has to be activated in SGW agreement (Users not to be added).
+
+After payments signing is performed, the bank sends payment status report as response via SGW.
+
+In case user cancels payment in Internet Bank, the bank sends RJCT response with reason "OrderCancelled".
+
+PS: Please pay attention, that if user signs/confirms payments in Internet Bank, then internet bank user's access rights and limits will apply.
+
+Request
+Payment signing in iBank needs to be sent against payment initiation endpoint:POST https://psd2.api.swedbank.com/partner/v1/sgw/payment-initiations?client_id=<API Key>
+
+HTTP header: X-Request-ID, X-Agreement-ID, Date and Content-Type are mandatory
+Request parameter API Key is mandatory
+Body: payment.xml or signed payment container in .asice format
+PS: If body is XML then Content-Type in POST request should be application/xml; charset=utf-8 and if body is signed payment container in .asice format then Content-Type should be application/octet-stream; charset=utf-8.
+
+Example request XML in ISO20022 pain.001.001.09 format
+<Document xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.09">
+<CstmrCdtTrfInitn>
+<GrpHdr>
+<MsgId>DomesticPID1</MsgId>
+<CreDtTm>2015-05-06T04:49:45</CreDtTm>
+<NbOfTxs>3</NbOfTxs>
+<CtrlSum>3.00</CtrlSum>
+<InitgPty>
+<Nm>UAB TEST COMPANY</Nm>
+</InitgPty>
+</GrpHdr>
+<PmtInf>
+<PmtInfId>PmtInfId_1</PmtInfId>
+<PmtMtd>TRF</PmtMtd>
+<NbOfTxs>1</NbOfTxs>
+<CtrlSum>1.00</CtrlSum>
+<PmtTpInf>
+<LclInstrm>
+<Prtry>EXPR</Prtry>
+</LclInstrm>
+</PmtTpInf>
+<ReqdExctnDt>
+<Dt>2015-12-15</Dt>
+</ReqdExctnDt>
+<Dbtr>
+<Nm>UAB TEST COMPANY</Nm>
+</Dbtr>
+<DbtrAcct>
+<Id>
+<IBAN>EE002200220022002200</IBAN>
+</Id>
+</DbtrAcct>
+<DbtrAgt>
+<FinInstnId>
+<BICFI>HABAEE2X</BICFI>
+<Nm>SWEDBANK</Nm>
+</FinInstnId>
+</DbtrAgt>
+<CdtTrfTxInf>
+<PmtId>
+<EndToEndId>EndToEndId999</EndToEndId>
+</PmtId>
+<Amt>
+<InstdAmt Ccy="EUR">1</InstdAmt>
+</Amt>
+<UltmtDbtr>
+<Nm>Swedbank AB LTU</Nm>
+<Id>
+<OrgId>
+<AnyBIC>HABALT22</AnyBIC>
+</OrgId>
+</Id>
+</UltmtDbtr>
+<Cdtr>
+<Nm>CREDITOR</Nm>
+<Id>
+<OrgId>
+<AnyBIC>HABAEE2X</AnyBIC>
+</OrgId>
+</Id>
+</Cdtr>
+<CdtrAcct>
+<Id>
+<IBAN>EE382200221020145685</IBAN>
+</Id>
+</CdtrAcct>
+<UltmtCdtr>
+<Nm>Ultimate creditor</Nm>
+<Id>
+<PrvtId>
+<DtAndPlcOfBirth>
+<BirthDt>2005-05-04</BirthDt>
+<CityOfBirth>Tartu</CityOfBirth>
+<CtryOfBirth>EE</CtryOfBirth>
+</DtAndPlcOfBirth>
+</PrvtId>
+</Id>
+</UltmtCdtr>
+<RmtInf>
+<Ustrd>Unstructured information</Ustrd>
+<Strd>
+<CdtrRefInf>
+<Ref>1234561</Ref>
+</CdtrRefInf>
+</Strd>
+</RmtInf>
+</CdtTrfTxInf>
+</PmtInf>
+<PmtInf>
+<PmtInfId>PmtInfId_2</PmtInfId>
+<PmtMtd>TRF</PmtMtd>
+<NbOfTxs>2</NbOfTxs>
+<CtrlSum>2.00</CtrlSum>
+<PmtTpInf>
+<SvcLvl>
+<Cd>NURG</Cd>
+<!-- NURG, SEPA, URGP, SDVA  -->
+</SvcLvl>
+</PmtTpInf>
+<ReqdExctnDt>
+<Dt>2015-03-27</Dt>
+</ReqdExctnDt>
+<Dbtr>
+<Nm>UAB TEST COMPANY</Nm>
+</Dbtr>
+<DbtrAcct>
+<Id>
+<IBAN>EE382200221020145685</IBAN>
+</Id>
+</DbtrAcct>
+<DbtrAgt>
+<FinInstnId>
+<BICFI>HABAEE2X</BICFI>
+</FinInstnId>
+</DbtrAgt>
+<CdtTrfTxInf>
+<PmtId>
+<EndToEndId>EndToEndId111</EndToEndId>
+</PmtId>
+<Amt>
+<InstdAmt Ccy="EUR">1.00</InstdAmt>
+</Amt>
+<UltmtDbtr>
+<Nm>Swedbank AB LTU</Nm>
+<Id>
+<OrgId>
+<AnyBIC>HABALT22</AnyBIC>
+</OrgId>
+</Id>
+</UltmtDbtr>
+<Cdtr>
+<Nm>First creditor</Nm>
+<Id>
+<PrvtId>
+<Othr>
+<Id>0000000000</Id>
+<SchmeNm>
+<Cd>NIDN</Cd>
+</SchmeNm>
+</Othr>
+</PrvtId>
+</Id>
+</Cdtr>
+<CdtrAcct>
+<Id>
+<IBAN>EE382200221020145685</IBAN>
+</Id>
+</CdtrAcct>
+<UltmtCdtr>
+<Nm>Ultimate creditor</Nm>
+<Id>
+<OrgId>
+<LEI>12340012345678910100</LEI>
+</OrgId>
+</Id>
+</UltmtCdtr>
+<RmtInf>
+<Ustrd>FFP11ISO</Ustrd>
+</RmtInf>
+</CdtTrfTxInf>
+<CdtTrfTxInf>
+<PmtId>
+<EndToEndId>EndToEndId122</EndToEndId>
+</PmtId>
+<Amt>
+<InstdAmt Ccy="EUR">1.00</InstdAmt>
+</Amt>
+<UltmtDbtr>
+<Nm>Swedbank AB LTU</Nm>
+<Id>
+<OrgId>
+<AnyBIC>HABALT22</AnyBIC>
+</OrgId>
+</Id>
+</UltmtDbtr>
+<Cdtr>
+<Nm>Second creditor</Nm>
+<Id>
+<OrgId>
+<Othr>
+<Id>1313222555</Id>
+<SchmeNm>
+<Cd>COID</Cd>
+</SchmeNm>
+</Othr>
+</OrgId>
+</Id>
+</Cdtr>
+<CdtrAcct>
+<Id>
+<IBAN>EE382200221020145685</IBAN>
+</Id>
+</CdtrAcct>
+<UltmtCdtr>
+<Nm>Ultimate creditor</Nm>
+<Id>
+<OrgId>
+<LEI>12340012345678910100</LEI>
+</OrgId>
+</Id>
+</UltmtCdtr>
+<RmtInf>
+<Ustrd>Some remittance information</Ustrd>
+</RmtInf>
+</CdtTrfTxInf>
+</PmtInf>
+</CstmrCdtTrfInitn>
+</Document>
+Response
+Request responses can be found from common inbox: GET https://psd2.api.swedbank.com/partner/v1/sgw/messages?client_id=<API Key>
+
+HTTP header: X-Request-ID and Date are mandatory
+Parameter API Keyis mandatory
+If for some reason it is not possible to debit domestic payments during first processing (customer might not have had enough money on account or payment's value date is later than banking day are most common reasons for it), domestic payment will be first put into processing status (ACSP). There will be a separate status report about payment when it has been processed or rejected further.
+
+Description of fields in XML payment file response you can find in Swedbank gateway page ISO2022 Description for Payments.
+
+Example response XML in ISO20022 pain.002.001.10 format
+<?xml version='1.0' encoding='UTF-8'?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.002.001.10">
+    <CstmrPmtStsRpt>
+        <GrpHdr>
+            <MsgId>20240301-121811149-39954187-6/3</MsgId>
+            <CreDtTm>2024-03-01T12:42:49</CreDtTm>
+            <InitgPty>
+                <Id>
+                    <OrgId>
+                        <AnyBIC>HABAEE2X</AnyBIC>
+                    </OrgId>
+                </Id>
+            </InitgPty>
+        </GrpHdr>
+        <OrgnlGrpInfAndSts>
+            <OrgnlMsgId>20111124</OrgnlMsgId>
+            <OrgnlMsgNmId>pain.001.001.09</OrgnlMsgNmId>
+            <OrgnlNbOfTxs>1</OrgnlNbOfTxs>
+            <OrgnlCtrlSum>0.1</OrgnlCtrlSum>
+            <GrpSts>ACSC</GrpSts>
+        </OrgnlGrpInfAndSts>
+        <OrgnlPmtInfAndSts>
+            <OrgnlPmtInfId>PMTID108</OrgnlPmtInfId>
+            <PmtInfSts>ACSC</PmtInfSts>
+            <TxInfAndSts>
+                <OrgnlInstrId>01234567890123456789</OrgnlInstrId>
+                <OrgnlEndToEndId>12345</OrgnlEndToEndId>
+                <TxSts>ACSC</TxSts>
+                <AcctSvcrRef>2024030106004538-1</AcctSvcrRef>
+                <OrgnlTxRef>
+                    <Amt>
+                        <InstdAmt Ccy="EUR">0.10</InstdAmt>
+                    </Amt>
+                    <ReqdExctnDt>
+                        <Dt>2024-03-01</Dt>
+                    </ReqdExctnDt>
+                    <Dbtr>
+                        <Pty>
+                            <Nm>DEBTOR</Nm>
+                        </Pty>
+                    </Dbtr>
+                    <DbtrAcct>
+                        <Id>
+                            <IBAN>EE932200221000488906</IBAN>
+                        </Id>
+                    </DbtrAcct>
+                    <DbtrAgt>
+                        <FinInstnId>
+                            <BICFI>HABAEE2X</BICFI>
+                        </FinInstnId>
+                    </DbtrAgt>
+                    <CdtrAgt>
+                        <FinInstnId>
+                            <BICFI>HABAEE2X</BICFI>
+                        </FinInstnId>
+                    </CdtrAgt>
+                    <Cdtr>
+                        <Pty>
+                            <Nm>CREDITOR</Nm>
+                        </Pty>
+                    </Cdtr>
+                    <CdtrAcct>
+                        <Id>
+                            <IBAN>EE862200221070543499</IBAN>
+                        </Id>
+                    </CdtrAcct>
+                </OrgnlTxRef>
+            </TxInfAndSts>
+        </OrgnlPmtInfAndSts>
+    </CstmrPmtStsRpt>
+</Document>
+
+Payment signing in Clients ERP
+This service enables send signed payment .asice file from customer ERP to Swedbank. Information about containers and electronic signature you can find from chapter "Authentication and security" and from GitHub
+
+This possibility requires adding agreement limit and users to SGW agreement and your ERP to enable transactions file signing possibility with Signature certificate (example from ID-card, Q Smart-ID, Mobile-ID or others).
+
+Client must establish daily and monthly limits for each user who is permitted to make transactions. Client´s daily and/or monthly limits extent to the all the users and it is mandatory to set if payment signing is in use in client ERP system.
+
+If the User exceeds the Daily Limit and/or the Monthly Limit, the Bank does not perform the payment orders prepared by the User. If the Client's Daily and/or Monthly Limit are exceeded, the Bank will not perform payment orders submitted hereunder.
+
+SGW agreement enables setting specific limits for payments that every transaction is checked against:
+
+client's daily limit (reset every midnight);
+client's monthly limit (reset at midnight on the first of every month);
+user´s daily limit (reset every midnight);
+user´s monthly limit (reset at midnight on the first of every month)
+The SGW agreement should be located using AgreementId and the Transport certificate (as it is done with other services) while user's Signature certificates define users and their access rights to the accounts that payments are made from.
+
+Request
+In Client ERP signed payment file in .asice format should be sent against payment initiation endpoint:POST https://psd2.api.swedbank.com/partner/v1/sgw/payment-initiations?client_id=<API Key>
+
+HTTP header: X-Request-ID, X-Agreement-ID, Date and Content-Typeare mandatory
+Request parameter API Keyis mandatory
+Body: signed payment container in .asice format
+Content-Type should be: application/octet-stream; charset=utf-8.
+Example request XML in ISO20022 pain.001.001.03 format
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<CstmrCdtTrfInitn>
+ <GrpHdr>
+ <MsgId>201409251</MsgId>
+ <CreDtTm>2015-03-18T11:16:58.696</CreDtTm>
+ <NbOfTxs>3</NbOfTxs>
+ <CtrlSum>1.6</CtrlSum>
+ <InitgPty>
+ <Nm>ETTEVÕTE AS</Nm>
+ </InitgPty>
+ </GrpHdr>
+ <PmtInf>
+ <PmtInfId>PMTID0025</PmtInfId>
+ <PmtMtd>TRF</PmtMtd>
+ <BtchBookg>false</BtchBookg>
+ <NbOfTxs>3</NbOfTxs>
+ <CtrlSum>1.6</CtrlSum>
+<PmtTpInf>
+<SvcLvl>
+<Cd>SEPA</Cd>
+ </SvcLvl>
+ </PmtTpInf>
+<ReqdExctnDt>2015-03-18</ReqdExctnDt>
+<Dbtr>
+<Nm>Mari Jüri</Nm>
+<PstlAdr>
+<Ctry>EE</Ctry>
+<AdrLine>Metsa 8, Tallinn</AdrLine>
+ </PstlAdr>
+ </Dbtr>
+<DbtrAcct>
+<Id>
+<IBAN>EE942200221017496868</IBAN>
+ </Id>
+<Ccy>EUR</Ccy>
+ </DbtrAcct>
+<DbtrAgt>
+<FinInstnId>
+<BIC>HABAEE2X</BIC>
+ </FinInstnId>
+ </DbtrAgt>
+<ChrgBr>SLEV</ChrgBr>
+<CdtTrfTxInf>
+<PmtId>
+<InstrId>11500001</InstrId>
+<EndToEndId>32700001</EndToEndId>
+ </PmtId>
+<Amt>
+<InstdAmt Ccy="EUR">0.10</InstdAmt>
+ </Amt>
+<Cdtr>
+<Nm>FIRMA AS</Nm>
+<PstlAdr>
+<Ctry>EE</Ctry>
+<AdrLine>Leevikese 5,Tallinn</AdrLine>
+ </PstlAdr>
+ </Cdtr>
+<CdtrAcct>
+<Id>
+<IBAN>EE572200221017496855</IBAN>
+ </Id>
+ </CdtrAcct>
+<RmtInf>
+<Strd>
+<CdtrRefInf>
+<Tp>
+<CdOrPrtry>
+<Cd>SCOR</Cd>
+ </CdOrPrtry>
+ </Tp>
+<Ref>8806947</Ref>
+ </CdtrRefInf>
+ </Strd>
+ </RmtInf>
+ </CdtTrfTxInf>
+<CdtTrfTxInf>
+<PmtId>
+<InstrId>1160000000X</InstrId>
+<EndToEndId>3280002578</EndToEndId>
+ </PmtId>
+<Amt>
+<InstdAmt Ccy="EUR">0.85</InstdAmt>
+ </Amt>
+<Cdtr>
+<Nm>Mari Ööbik</Nm>
+<PstlAdr>
+<Ctry>EE</Ctry>
+<AdrLine>Siinseal, Tallinn</AdrLine>
+ </PstlAdr>
+ </Cdtr>
+<CdtrAcct>
+<Id><IBAN>EE652200221006102024</IBAN>
+ </Id>
+ </CdtrAcct>
+<RmtInf>
+<Ustrd>TEXT..TEXT</Ustrd>
+<Strd>
+<CdtrRefInf>
+<Tp>
+<CdOrPrtry>
+<Cd>SCOR</Cd>
+ </CdOrPrtry>
+ </Tp>
+<Ref>88069474660</Ref>
+ </CdtrRefInf>
+ </Strd>
+ </RmtInf>
+ </CdtTrfTxInf>
+<CdtTrfTxInf>
+<PmtId>
+<InstrId>11700001</InstrId>
+<EndToEndId>32902545</EndToEndId>
+ </PmtId>
+<Amt>
+<InstdAmt Ccy="EUR">0.65</InstdAmt>
+ </Amt>
+<CdtrAgt>
+<FinInstnId>
+<BIC>NDEAFIHH</BIC>
+ </FinInstnId>
+ </CdtrAgt>
+<Cdtr>
+<Nm>Ettevõte OY</Nm>
+<PstlAdr>
+<Ctry>FI</Ctry>
+<AdrLine>ADDRESS 1, HELSINKI</AdrLine>
+ </PstlAdr>
+ </Cdtr>
+<CdtrAcct>
+<Id>
+ <IBAN>FI05240018000055487</IBAN>
+ </Id>
+ </CdtrAcct>
+ <RmtInf>
+ <Ustrd>Foreign Payment EE</Ustrd>
+ </RmtInf>
+ </CdtTrfTxInf>
+ </PmtInf>
+</CstmrCdtTrfInitn>
+</Document>
+Response
+Request responses can be found from common inbox: GET https://psd2.api.swedbank.com/partner/v1/sgw/messages?client_id=<API Key>
+
+HTTP header: X-Request-ID and Date are mandatory
+Parameter API Keyis mandatory
+If for some reason it is not possible to debit domestic payments during first processing (customer might not have had enough money on account or payment's value date is later than banking day are most common reasons for it), domestic payment will be first put into processing status (ACSP). There will be a separate status report about payment when it has been processed or rejected further.
+
+Description of fields in XML payment file response you can find in Swedbank gateway page ISO2022 Description for Payments.
+
+Example response XML in ISO20022 pain.002.001.03 format
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.002.001.03">
+<CstmrPmtStsRpt>
+ <GrpHdr>
+ <MsgId>20150317-153148975-3445-1750/3569</MsgId>
+ <CreDtTm>2015-03-18T12:45:43</CreDtTm>
+ <InitgPty>
+ <Id>
+ <OrgId>
+ <BICOrBEI>HABAEE2X</BICOrBEI>
+ </OrgId>
+ </Id>
+ </InitgPty>
+ </GrpHdr>
+ <OrgnlGrpInfAndSts>
+ <OrgnlMsgId>201409251</OrgnlMsgId>
+ <OrgnlMsgNmId>pain.001.001.03</OrgnlMsgNmId>
+ <OrgnlNbOfTxs>3</OrgnlNbOfTxs>
+ <OrgnlCtrlSum>1.6</OrgnlCtrlSum>
+ <GrpSts>PART</GrpSts>
+ </OrgnlGrpInfAndSts>
+ <OrgnlPmtInfAndSts>
+ <OrgnlPmtInfId>PMTID0025</OrgnlPmtInfId>
+ <PmtInfSts>PART</PmtInfSts>
+ <TxInfAndSts>
+ <OrgnlInstrId>1160000000X</OrgnlInstrId>
+ <OrgnlEndToEndId>3280002578</OrgnlEndToEndId>
+ <TxSts>ACSC</TxSts>
+ <AcctSvcrRef>2015031800000315-1</AcctSvcrRef>
+ <OrgnlTxRef>
+ <Amt>
+<InstdAmt Ccy="EUR">0.85</InstdAmt>
+ </Amt>
+<ReqdExctnDt>2015-03-18</ReqdExctnDt>
+<Dbtr>
+<Nm>ETTEVÕTE AS</Nm>
+ </Dbtr>
+<DbtrAcct>
+<Id>
+<IBAN>EE942200221017496868</IBAN>
+ </Id>
+ </DbtrAcct>
+<DbtrAgt>
+<FinInstnId>
+<BIC>HABAEE2X</BIC>
+ </FinInstnId>
+ </DbtrAgt>
+<CdtrAgt>
+<FinInstnId>
+<BIC>HABAEE2X</BIC>
+ </FinInstnId>
+ </CdtrAgt>
+<Cdtr>
+<Nm>FIRMA AS</Nm>
+ </Cdtr>
+<CdtrAcct>
+<Id>
+<IBAN>EE572200221017496855</IBAN>
+ </Id>
+ </CdtrAcct>
+ </OrgnlTxRef>
+ </TxInfAndSts>
+<TxInfAndSts>
+<OrgnlInstrId>11700001</OrgnlInstrId>
+<OrgnlEndToEndId>32902545</OrgnlEndToEndId>
+<TxSts>ACSP</TxSts>
+<OrgnlTxRef>
+<Amt>
+<InstdAmt Ccy="EUR">0.65</InstdAmt>
+ </Amt>
+<ReqdExctnDt>2015-03-18</ReqdExctnDt>
+<Dbtr>
+<Nm>ETTEVÕTE AS</Nm>
+ </Dbtr>
+<DbtrAcct>
+<Id>
+<IBAN>EE942200221017496868</IBAN>
+ </Id>
+ </DbtrAcct>
+<DbtrAgt>
+<FinInstnId>
+<BIC>HABAEE2X</BIC>
+ </FinInstnId>
+ </DbtrAgt>
+<CdtrAgt>
+<FinInstnId>
+<BIC>NDEAFIHH</BIC>
+ </FinInstnId>
+ </CdtrAgt>
+ <Cdtr>
+ <Nm>FIRMA Oyj Ab</Nm>
+ </Cdtr>
+ <CdtrAcct>
+ <Id>
+ <IBAN>FI0524001800005407</IBAN>
+ </Id>
+ </CdtrAcct>
+ </OrgnlTxRef>
+ </TxInfAndSts>
+ <TxInfAndSts>
+ <OrgnlInstrId>11500001</OrgnlInstrId>
+ <OrgnlEndToEndId>32700001</OrgnlEndToEndId>
+ <TxSts>RJCT</TxSts>
+ <StsRsnInf>
+ <Rsn>
+ <Cd>NARR</Cd>
+ </Rsn>
+ <AddtlInf>AccountNotFound</AddtlInf>
+ </StsRsnInf>
+ <OrgnlTxRef>
+ <Amt>
+ <InstdAmt Ccy="EUR">0.10</InstdAmt>
+ </Amt>
+ <ReqdExctnDt>2015-03-18</ReqdExctnDt>
+ <Dbtr>
+ <Nm>ETTEVÕTE AS</Nm>
+ </Dbtr>
+ <DbtrAcct>
+ <Id>
+ <IBAN>EE942200221017496868</IBAN>
+ </Id>
+ </DbtrAcct>
+ <DbtrAgt>
+ <FinInstnId>
+ <BIC>HABAEE2X</BIC>
+ </FinInstnId>
+ </DbtrAgt>
+ <Cdtr>
+ <Nm>FIRMA AS</Nm>
+ </Cdtr>
+ <CdtrAcct>
+ <Id>
+ <IBAN>EE142200221002167820</IBAN>
+ </Id>
+ </CdtrAcct>
+ </OrgnlTxRef>
+ </TxInfAndSts>
+ </OrgnlPmtInfAndSts>
+</CstmrPmtStsRpt>
+</Document>
+
+Payment signing via Payment Signing API
+
+
+This service enable customer to sign and execute payment messages on the bank side with simple REST calls via mTLS connection which means that it is not needed to implement payment signing to ERP system. Payment AP is synchronous RESTful API.
+
+Customer can send payment data in ISO20022 xml format. For payment data validation (characters, signature, limits, duplicity check) applies the same rules that are descried under previous chapter (Payment service). Payment API service supports all ISO payment types (Mass, foreign payments, more than 1 payment per file).
+
+PS: Only one file containing max 500 payments, is allowed to be added for each request.
+
+Bank service will create signed ASiC-E via Payment API. Customer is signing payment with qualified signature certificate (only Q Smart-ID and M-ID are supported). After signing of payment container it is possible to execute payment directly via API.
+
+For signing with physical signature tokens (Smartcard/ID-card or USB token/Seal), the container needs to be created in the IS with separate ID software or signature container creation libraries. A possible solution can be found https://www.id.ee/en/rubriik/for-developer/.
+
+Currently there are 6 endpoints for payment API.
+
+Request URL depends on service step. Base url: https://psd2.api.swedbank.com/partner/v1/sgw/
+
+Import payment xml for signing
+This endpoint can be used for payment file signing initiation if payment file is not signed on ERP side.
+
+POST [base-url]/signable-payments?client_id=<API Key> : to import ISO20022 payment xml file for signing
+
+HTTP header: X-Request-ID, X-Agreement-ID, Date and Content-Type are mandatory
+
+Request parameter API Keyis mandatory
+
+Request body consist of payment xml data in ISO20022 pain.001.001.03 or pain.001.001.09 format (example under Payment service description).
+
+In response bank provides signablePaymentId and info for next request
+
+Request example
+ `curl --request POST 'https://psd2.api.swedbank.com/partner/v1/sgw/signable-payments?client_id=<API Key>' \
+--cert-type P12
+--cert key.p12:password
+--header 'X-Request-ID: requestId' \
+--header 'X-Agreement-ID: 1234' \
+--header 'Date: Tue, 09 May 2023 11:11:05 GMT \
+--header 'Accept: application/json' \
+--header 'Content-Type: application/xml; charset=utf-8' \
+--data-raw '<?xml version="1.0" encoding="UTF-8"?><Ping><Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"
+xmlns:xsi=http://www.w3.org/2001/XMLSchema-instance> '
+Response example
+ {
+    "signablePaymentId": "43f89f22-80bd-4168-9e85-f062422241b1",
+    "signers": [],
+    "status": "PENDING",
+    "_links": {
+        "self": {
+            "href": https://psd2.api.swedbank.com/partner/v1/sgw/signable-payments/43f89f22-80bd-4168-9e85-f062422241b1
+        },
+        "sign-with-smart-id": {
+            "href": https://psd2.api.swedbank.com/partner/v1/sgw/signable-payments/43f89f22-80bd-4168-9e85-f062422241b1/smart-id-signatures
+        },
+        "sign-with-mobile-id": {
+            "href": https://psd2.api.swedbank.com/partner/v1/sgw/signable-payments/43f89f22-80bd-4168-9e85-f062422241b1/mobile-id-signatures
+        }
+    }
+}
+PS: Signer information is empty as signer data will be added in next step
+
+PPS: Status is always pending as signing process is not started.
+
+In case you would like to add multiple signatures you need get signable payment before it is possible to add next signature.
+
+GET[base-url]/signable-payments/{signablePaymentId}?client_id=<API Key>
+
+HTTP header: X-Request-ID and Date are mandatory
+Request parameter API Keyis mandatory
+In response bank provides signablePaymentId
+File signing
+These endpoints allow to initiate file signing. Supported devices are qualified Smart-ID (use smart-id-signatures) or Mobile-ID (use mobile-id-signatures).
+
+If there are multiple signers, then for each signer separate POST request should be performed. In response bank provides a status of signer signature.
+
+POST [base-url]/signable-payments/{signablePaymentId}/smart-id-signatures?client_id=<API Key> : to add Smart-ID signature
+
+HTTP header: X-Request-ID, X-Agreement-ID, Date  and signablePaymentId are mandatory
+Request parameter API Keyis mandatory
+Request body: signer personal ID (registrationCode) and country code of personal ID (identityCountry).
+POST[base-url]/signable-payments/{signablePaymentId}/mobile-id-signatures?client_id=<API Key> : to add Mobile-ID signature
+
+HTTP header: X-Request-ID, X-Agreement-ID, Date and signablePaymentId are mandatory
+Request parameter API Keyis mandatory
+Request body: signer personal ID (registrationCode), country code of personal ID (identityCountry), phone number (phoneNumber) and customer language (language) .
+PS: After POST request you will get a controleCode that should be compared with code in your environment, payment status is still PENDING
+
+PPS: Using Smart-ID for payment signing there can be a delay of getting the verification code. If verification code is not received in the first step, then it is needed to do poll signatures until it is received and also shows file is signed. The exact behavior depends on mobile device operating system version, screen state, app permissions and app configuration. The purpose of this delay is to give user the time to read the verification code. More information is available in GitHub - SK-EID/smart-id-documentation
+
+Response example
+{
+    "signatureId": "c5b48038-d60b-4d9a-a340-98468a49c15d",
+    "controlCode": "8470",
+    "status": "PENDING",
+    "_links": {
+        "get-signable-payment": {
+            "href": https://psd2.api.swedbank.com/partner/v1/sgw/signable-payments/43f89f22-80bd-4168-9e85-f062422241b1
+        },
+        "poll-signature": {
+            "href": https://psd2.api.swedbank.com/partner/v1/sgw/signable-payments/43f89f22-80bd-4168-9e85-f062422241b1/signatures/c5b48038-d60b-4d9a-a340-98468a49c15d
+        }
+    }
+}
+GET[base-url]/signable-payments/{signablePaymentId}/signatures/{signatureId}?client_id=<API Key> : to poll signature status
+
+HTTP header: X-Request-ID, X-Agreement-ID, Date  and signablePaymentId are mandatory
+Parameter API Keyis mandatory
+In response payment status should be "signed" in case of inserted correct PIN and after payment signing process is finished (till that payment status can be "pending")
+Response example
+{
+    "signatureId": "c5b48038-d60b-4d9a-a340-98468a49c15d",
+    "controlCode": null,
+    "status": "SIGNED",
+    "errorCode": null,
+    "_links": {
+        "self": {
+            "href": https://psd2.api.swedbank.com/partner/v1/sgw/signable-payments/43f89f22-80bd-4168-9e85-f062422241b1/signatures/c5b48038-d60b-4d9a-a340-98468a49c15d
+        }
+    }
+}
+PS: If the first time payment status is "pending", please request again till you will get payment status "signed".
+PPS: If signing process is cancelled or there was inserted wrong PIN then payment signing fails and payment status is "failed".
+Payment file execution
+If signatures are added to the payment file, file can be executed.
+
+PATCH[base-url]/signable-payments/{signablePaymentId}?client_id=<API Key> : to execute signed payments for immediate processing
+
+HTTP header: X-Request-ID, X-Agreement-ID, Date , Content-Type and signablePaymentId are mandatory
+Content-Type: application/json
+Request parameter API Key is mandatory
+Request body value should be "action": "EXECUTE".
+{ "action": "EXECUTE" }
+
+In response bank provides a status of payment file (pending, executed)
+
+Response
+Request responses can be found from common inbox: GET https://psd2.api.swedbank.com/partner/v1/sgw/messages?client_id=<API Key>
+
+HTTP header: X-Request-ID and Date are mandatory
+Parameter API Keyis mandatory
+If for some reason it is not possible to debit domestic payments during first processing (customer might not have had enough money on account or payment's value date is later than banking day are most common reasons for it), domestic payment will be first put into processing status (ACSP). There will be a separate status report about payment when it has been processed or rejected further.
+
+Description of fields in XML payment file response you can find in Swedbank gateway page ISO2022 Description for Payments.
+Description of fields in request
+Code		Description	
+X-Request-ID	AN(255)	Message request ID set by the customer, which helps to connect request and response data. ID must be unique	1..1
+X-Agreement-ID	N	Swedbank Gateway agreement number provided by the bank that uniquely identifies the agreement	1..1
+Date	AN	Date and time of request in RFC 1123 Full dates format e.g. Tue, 21 April 2023 14:23:49 GMT	1..1
+Content-Type	AN	Content type header must be set when sending in xml body, which guarantees proper UTF-8 encoding of the body e.g. application/xml; charset=utf-8	1..0
+API Key (client_id)	AN	Customer identification number (API Key) generated by Developer Portal during application onboarding that uniquely identifies customer application in SGW API	1..1
+signablePaymentId	AN	Signable payment ID provided by the bank that uniquely identifies the signable payment file	1..1
+signatureId	AN	Signature ID	1..1
+registrationCode	N	Signer personal ID	1..1
+identityCountry	A(2)	Country code of signer person. Country code is in ISO 3166-1 Alpha-2 standard	1..1
+phoneNumber	AN	Customer Mobile ID related phone number with country prefix : +3725555555	1..1
+language	A(2)	Customer language: et, lv, lt, ru, en
+
+Transaction notifications
+
+It is possible for a customer to get a notification about every transaction that is booked on a given account. This chargeable service has to be activated for every account through SGW agreement and customer can choose to be notified about incoming payments or outgoing payments.
+
+Additionally, notifications can be filtered by currency and amount – only transactions in certain currency (EUR or all currencies) and exceeding the specified amount in that currency will send a notification.
+
+Detailed implementation guidelines for ISO20022 notification message request and response can be found from ISO 20022 Message Implementation Guide on Swedbank Gateway info page in Internet Bank business and here: XSD validation.
+
+For every transaction matching the filter set in SGW agreement a message is created for each ERP certificate assigned to the agreement. Message is waiting to be picked up for 48 hours, after which it will be deleted from the system.
+
+Request
+There is no POST request – bank is generating these messages based on SGW agreement details.
+
+Response
+Transaction notifications messages can be found from common inbox: GET https://psd2.api.swedbank.com/partner/v1/sgw/messages?client_id=<API Key>
+
+HTTP header: X-Request-ID and Date are mandatory
+Parameter API Keyis mandatory
+The response contains:
+
+Body – xml file
+Header X-Request-ID – Request ID set by the Bank (alert). .
+Header X-Tracking-ID – Bank side message ID.
+Header X-Agreement-ID - Swedbank Gateway agreement number provided by the bank
+Header Date - Date and time of response
+Description of fields
+Field name		Description	
+X-Request-ID	AN(255)	Message request ID set by the Bank that refers to the service	1..1
+X-Agreement-ID	N	Swedbank Gateway agreement number provided by the bank that uniquely identifies the agreement	1..1
+X-Tracking-ID	AN	Bank side message ID	1..1
+Date	AN	Date and time of request/response in RFC 1123 Full dates format e.g. Tue, 21 April 2023 14:23:49 GMT	1..1
+API Key (client_id)	AN	Customer identification number (API Key) generated by Developer Portal during application onboarding that uniquely identifies customer application in SGW API	1..1
+All transaction notification messages are in format XML camt.054.001.02.
+
+Transaction notification response differs from statement response only by different container element (Notifications instead of Statement) and missing statement-specific elements (Period, Partial and starting-ending balances for currency).
+
+More info can be found from ISO 20022 Message Implementation Guide or from SGW info page in iBank Business under Useful Information.
+
+Example response XML in ISO20022 camt.054.001.02 format
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.054.001.02" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:iso:std:iso:20022:tech:xsd:camt.054.001.02
+camt.054.001.02.xsd">
+<BkToCstmrDbtCdtNtfctn>
+<GrpHdr>
+<MsgId>2023111200000000000001</MsgId>
+<CreDtTm>2023-11-12T11:55:26</CreDtTm>
+</GrpHdr>
+<Ntfctn>
+<Id>2023111200087157</Id>
+<CreDtTm>2023-11-12T11:55:26</CreDtTm>
+<Acct>
+<Id>
+<IBAN>EE062200221055091966</IBAN>
+</Id>
+<Ccy>EUR</Ccy>
+<Ownr>
+<Nm>FIRMA AS</Nm>
+<PstlAdr>
+<Ctry>EE</Ctry>
+<AdrLine>Metsa 8, Tallinn</AdrLine>
+</PstlAdr>
+<Id>
+<OrgId>
+<Othr>
+<Id>12345124</Id>
+</Othr>
+</OrgId>
+</Id>
+</Ownr>
+<Svcr>
+<FinInstnId>
+<BIC>HABAEE2X</BIC>
+<Nm>Swedbank AS</Nm>
+<PstlAdr>
+<Ctry>EE</Ctry>
+<AdrLine>Liivalaia 8, Tallinn</AdrLine>
+</PstlAdr>
+<Othr>
+<Id>123456789</Id>
+<SchmeNm>
+<Cd>COID</Cd>
+ </SchmeNm>
+</Othr>
+</FinInstnId>
+</Svcr>
+</Acct>
+<Ntry>
+<NtryRef>2023111200087157-1</NtryRef>
+<Amt Ccy="EUR">1.60</Amt>
+<CdtDbtInd>CRDT</CdtDbtInd>
+<Sts>BOOK</Sts>
+<BookgDt>
+<Dt>2023-11-12</Dt>
+</BookgDt>
+<ValDt>
+<Dt>2023-11-12</Dt>
+</ValDt>
+<AcctSvcrRef>2023111200087157-1</AcctSvcrRef>
+<BkTxCd>
+<Domn>
+<Cd>PMNT</Cd>
+<Fmly>
+<Cd>RCDT</Cd>
+<SubFmlyCd>DMCT</SubFmlyCd>
+</Fmly>
+</Domn>
+<Prtry>
+<Cd>MK</Cd>
+<Issr>Swedbank AS</Issr>
+</Prtry>
+</BkTxCd>
+<NtryDtls>
+<TxDtls>
+<Refs>
+<MsgId>201111251</MsgId>
+<AcctSvcrRef>2023111200087157-1</AcctSvcrRef>
+<PmtInfId>PMTID006</PmtInfId>
+<InstrId>315</InstrId>
+<EndToEndId>527</EndToEndId>
+</Refs>
+<AmtDtls>
+<InstdAmt>
+<Amt Ccy="EUR">1.60</Amt>
+</InstdAmt>
+<TxAmt>
+<Amt Ccy="EUR">1.60</Amt>
+</TxAmt>
+</AmtDtls>
+<RltdPties>
+<Dbtr>
+<Nm>ETTEVÕTE AS</Nm>
+<PstlAdr>
+<Ctry>EE</Ctry>
+<AdrLine>Liivalaia, Tallinn</AdrLine>
+</PstlAdr>
+<Id>
+<OrgId>
+<Othr>
+<Id>123456789</Id>
+</Othr>
+</OrgId>
+</Id>
+</Dbtr>
+<DbtrAcct>
+<Id>
+<IBAN>EE942200221017496868</IBAN>
+</Id>
+</DbtrAcct>
+</RltdPties>
+<RltdAgts>
+<DbtrAgt>
+<FinInstnId>
+<BIC>HABAEE2X</BIC>
+</FinInstnId>
+</DbtrAgt>
+</RltdAgts>
+<RmtInf>
+<Ustrd>Incoming payment Alert test</Ustrd>
+<Strd>
+<CdtrRefInf>
+<Tp>
+<CdOrPrtry>
+<Cd>SCOR</Cd>
+</CdOrPrtry>
+</Tp>
+<Ref>88069474660</Ref>
+</CdtrRefInf>
+</Strd>
+</RmtInf>
+</TxDtls>
+</NtryDtls>
+</Ntry>
+</Ntfctn>
+</BkToCstmrDbtCdtNtfctn>
+</Document>
+
+E-invoices
+
+Before using this service, it is important to know the terms and conditions of e-invoicing service in the country of operations. Although e-invoice operations exist in all Baltic countries, local implementations differ both from dataset and service range point of view.
+
+The applicability of the current E-invoice format may be verified using the XSD schema available on the website of Bank E-invoice xsd.
+
+PS: This service differs from other SGW services because of request parameters. For all requests it is mandatory to add 'eInvoiceAgreementId' and country.
+
+Estonian e-invoice
+Currently supported e-invoice format in Estonia are 1.11 and 1.2. Estonian e-invoice format descriptions can be found at https://www.swedbank.ee/static/pdf/private/d2d/payments/Tehnilised_tingimused(e-arve_saatmine)_ENG.pdf .
+
+Latvian e-invoice
+Currently supported e-invoice formats in Latvia are 1.0 and PEPPOL BIS 3.0. Latvian e-invoice format descriptions can be found at: https://www.swedbank.lv/static/pdf/business/cash/einvoices/Latvian_Einvoice_technical_conditions.pdf
+
+Lithuanian e-invoice
+Currently supported e-invoice format in Lithuania is 1.1.
+
+Swedbank specific e-invoice technical conditions, including examples, can be found here: https://www.swedbank.lt/static/pdf/business/cash/einvoices/info/Technical-Conditions-of-E-invoice-Swedbank.pdf.
+
+Swedbank Gateway always notifies seller/operator upon receipt of e-invoices with VEA/FEI file.
+
+If file was accepted and no faulty e-invoices found, then empty response is returned
+If file was incorrect (missing xsd, unparseable xml) then filebased errorcode is returned in header attribute fileFailReason.
+If file included faulty e-invoices (missing internetbank agreement, incorrect account etc), then response file will include Invoice block with errorcode and multiple errorcodes are to be expected.
+NB! Full list of e-invoice error codes is described in E-invoice technical descriptions, which can be accessed on E-invoice product page in Swedbank's public website of each country (EE,LV, LT).
+
+Sending E-invoices (skipping does not seem relavent)
+Single E-invoice application (skipping does not seem relavent)
+E-Invoice Standing Order / Automated Payment  agreement management (skipping does not seem relavent)
+E-Invoice Standing Order / Automated Payment agreement payment notification (skipping does not seem relavent)
+E-invoice receiving (skipping does not seem relavent)
+E-invoice and E-invoice SOA/APA cancelling via Credit Invoice (skipping does not seem relavent)
+E-Invoice Standing Order Agreement (EE) / E-Invoice Automated Payment Agreement (LV/LT) (skipping does not seem relavent)
+Periodic report of E-invoice Standing Order/Automated Payment changes (skipping does not seem relavent)
+Report sending to EE Tax and Custom Board (skipping does not seem relavent)
+Sending VAT return (skipping does not seem relavent)
+Sending Income and Social Tax declaration (skipping does not seem relavent)
+Employment registration (skipping does not seem relavent)
+Employment registration query (skipping does not seem relavent)
+
+Payment link
+Payment Link (PL) service is synchronous RESTful API that creates link from Client provided data for payment initiation.
+
+Generated link will open pre-filled payment form where payment can be executed from one of Estonian, Latvian or Lithuanian banks.
+
+Request
+Payment link request needs to be sent against endpoint: POST https://psd2.api.swedbank.com/partner/v1/sgw/payment-links?client_id=<API Key>
+
+HTTP header: X-Request-ID, X-Agreement-ID, Date and Content-Typeare mandatory
+Parameter API Key is mandatory
+Example Body:
+{
+  "amount": 0,
+  "creditorIban": "string",
+  "currency": "string",
+  "details": "string",
+  "expiresAt": "2023-05-08T13:37:32.157Z",
+  "language": "string",
+  "reference": "string"
+}
+Curl example
+curl --request POST 'https://psd2.api.swedbank.com/partner/v1/sgw/payment-links?client_id=ftrysjre86lk54rf9uih' \
+--cert-type P12 --cert key.p12:password
+--header 'X-Request-ID: requestId' \
+--header 'X-Agreement-ID: 1234' \
+--header 'Date: Tue, 09 May 2023 11:11:05 GMT \
+--header 'Accept: application/json' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+"expiresAt": "2022-01-31T14:36:53.927Z",
+"amount": 1.01,
+"currency": "EUR",
+"creditorIban": "EE302200221234567890",
+"details": "details",
+"reference": "123",
+"language": "en"
+}'
+Description of fields
+Code		Description	
+X-Agreement-ID	N	Swedbank Gateway agreement number provided by the bank that uniquely identifies the agreement	1..1
+X-Request-ID	AN(255)	Message request ID set by the customer, which helps to connect request and response data. ID must be unique	1..1
+Date	AN	Date and time of request/response in RFC 1123 Full dates format e.g. Tue, 21 April 2023 14:23:49 GMT	1..1
+Content-Type	AN	Content type header must be set when sending in xml body, which guarantees proper UTF-8 encoding of the body e.g. application/json; charset=utf-8	1..1
+Client_id (API Key)	AN	Customer identification number (API Key) generated by Developer Portal during application onboarding that uniquely identifies customer application in SGW API	1..1
+expiresAt	DT	Link expiration timestamp in UTC time zone, format: yyyy-MM-dd'T'HH:mm:ss.SSS'Z' Maximum validity period 90 days.	1..1
+amount	N	Payment amount, only positive and cents should be separated with “.”	1..1
+currency	A(3)	Payment currency (can be used only EUR)	1..1
+creditorIban	AN	Creditor IBAN (PL collection account, what added and allowed to use for PL in SGW agreement)	1..1
+details	AN(140)	Payment details	0..1
+reference	AN(20)	Payment reference number (details and reference number will be merged into details whenever needed by multibank banklink)	0..1
+language	A(2)	Preselected PL page language: et, lv, lt, ru, en	1..1
+PS. Between Estonian banks and only in Swedbank Estonia Payment initiation links can be generated with both fields: details and payment reference. In Latvia and Lithuania Swedbank’s either payment details or payment reference fields must be present but not both.
+
+Response
+Response headers:
+
+Header X-Agreement-ID – Swedbank Gateway unique agreement number
+Header X-Tracking-ID - Bank side message ID
+Header X-Request-ID - Message request ID set by the customer, which helps to connect request and response data. ID must be unique
+Response body :
+{
+"link": "https://banklink.swedbank.com/pay?linkId=154e40fa-2780-43d8-b890-fe793945fb37",
+"error": null
+}
+Response example for invalid request
+{
+    "error": {
+    "code": 400,
+    "timestamp": "2022-01-04T09:20:30.765541+02:00",
+    "message": "Invalid request body",
+    "errors": [
+            {
+                "reason": "invalidArgument",
+                "message": "'amount' must be greater than 0"
+            }
+              ]
+            }
+}
+
+
+Payment Link (PL) service is synchronous RESTful API that creates link from Client provided data for payment initiation.
+
+Generated link will open pre-filled payment form where payment can be executed from one of Estonian, Latvian or Lithuanian banks.
+
+Request
+Payment link request needs to be sent against endpoint: POST https://psd2.api.swedbank.com/partner/v1/sgw/payment-links?client_id=<API Key>
+
+HTTP header: X-Request-ID, X-Agreement-ID, Date and Content-Typeare mandatory
+Parameter API Key is mandatory
+Example Body:
+{
+  "amount": 0,
+  "creditorIban": "string",
+  "currency": "string",
+  "details": "string",
+  "expiresAt": "2023-05-08T13:37:32.157Z",
+  "language": "string",
+  "reference": "string"
+}
+Curl example
+curl --request POST 'https://psd2.api.swedbank.com/partner/v1/sgw/payment-links?client_id=ftrysjre86lk54rf9uih' \
+--cert-type P12 --cert key.p12:password
+--header 'X-Request-ID: requestId' \
+--header 'X-Agreement-ID: 1234' \
+--header 'Date: Tue, 09 May 2023 11:11:05 GMT \
+--header 'Accept: application/json' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+"expiresAt": "2022-01-31T14:36:53.927Z",
+"amount": 1.01,
+"currency": "EUR",
+"creditorIban": "EE302200221234567890",
+"details": "details",
+"reference": "123",
+"language": "en"
+}'
+Description of fields
+Code		Description	
+X-Agreement-ID	N	Swedbank Gateway agreement number provided by the bank that uniquely identifies the agreement	1..1
+X-Request-ID	AN(255)	Message request ID set by the customer, which helps to connect request and response data. ID must be unique	1..1
+Date	AN	Date and time of request/response in RFC 1123 Full dates format e.g. Tue, 21 April 2023 14:23:49 GMT	1..1
+Content-Type	AN	Content type header must be set when sending in xml body, which guarantees proper UTF-8 encoding of the body e.g. application/json; charset=utf-8	1..1
+Client_id (API Key)	AN	Customer identification number (API Key) generated by Developer Portal during application onboarding that uniquely identifies customer application in SGW API	1..1
+expiresAt	DT	Link expiration timestamp in UTC time zone, format: yyyy-MM-dd'T'HH:mm:ss.SSS'Z' Maximum validity period 90 days.	1..1
+amount	N	Payment amount, only positive and cents should be separated with “.”	1..1
+currency	A(3)	Payment currency (can be used only EUR)	1..1
+creditorIban	AN	Creditor IBAN (PL collection account, what added and allowed to use for PL in SGW agreement)	1..1
+details	AN(140)	Payment details	0..1
+reference	AN(20)	Payment reference number (details and reference number will be merged into details whenever needed by multibank banklink)	0..1
+language	A(2)	Preselected PL page language: et, lv, lt, ru, en	1..1
+PS. Between Estonian banks and only in Swedbank Estonia Payment initiation links can be generated with both fields: details and payment reference. In Latvia and Lithuania Swedbank’s either payment details or payment reference fields must be present but not both.
+
+Response
+Response headers:
+
+Header X-Agreement-ID – Swedbank Gateway unique agreement number
+Header X-Tracking-ID - Bank side message ID
+Header X-Request-ID - Message request ID set by the customer, which helps to connect request and response data. ID must be unique
+Response body :
+{
+"link": "https://banklink.swedbank.com/pay?linkId=154e40fa-2780-43d8-b890-fe793945fb37",
+"error": null
+}
+Response example for invalid request
+{
+    "error": {
+    "code": 400,
+    "timestamp": "2022-01-04T09:20:30.765541+02:00",
+    "message": "Invalid request body",
+    "errors": [
+            {
+                "reason": "invalidArgument",
+                "message": "'amount' must be greater than 0"
+            }
+              ]
+            }
+}
+
+POS report delivery
+
+This service is used as delivery channel for POS reports from the bank to the client.
+
+Request
+There is no POST request – bank is generating these messages based on POS agreement and SGW agreement details.
+
+Response
+Generated POS reports can be found from common inbox: GET  https://psd2.api.swedbank.com/partner/v1/sgw/messages?client_id=<API Key>
+
+HTTP header: X-Request-ID and Date are mandatory
+Parameter API Key is mandatory
+The response contains:
+
+Body – xml file
+Header X-Request-ID – Request ID set by the Bank (POSRaport).
+Header X-Tracking-ID – Bank side message ID.
+Header X-Agreement-ID - Swedbank Gateway agreement number provided by the bank
+Header Date - Date and time of response
+Response XML is not generated by SGW, thus there is only 2 report types given as samples.
+
+Please refer to POS report generator documentation about details and XSD (example Estonian details page: https://www.swedbank.ee/business/cash/cashflow/posReport).
+
+Example 1: Transaction based report
+<?xml version="1.0" encoding="UTF-8" ?>
+- <posreport version="2.1" rep_date="2012-05-02" per_start="2012-04-17" per_end="2012-04-18">
+- <company>
+  <id>93201456</id>
+  <name>Luuk OÜ</name>
+  <contact_address>LIIVALAIA 10</contact_address>
+  <contact_city>Tallinn</contact_city>
+  <contact_zip>15040</contact_zip>
+  <contact_country>EE</contact_country>
+- <outlet>
+<id>9297565</id>
+  <name>Luuk-LibakaupmeesI</name>
+  <address>LIIVALAIA 8</address>
+  <city>Tallinn</city>
+  <zip>15040</zip>
+  <account_no>221014217590</account_no>
+  <country>ESTONIA</country>
+- <terminal>
+  <id>11060344515</id>
+- <batch>
+  <batch_no>041624</batch_no>
+  <batch_start>2012-04-16</batch_start>
+  <batch_close>2012-04-16</batch_close>
+  <value_date>2012-04-16</value_date>
+  <proc_date>2012-04-17</proc_date>
+- <card_group>
+  <organization>MasterCard</organization>
+  <type>Credit</type>
+  <region>EU</region>
+- <transaction>
+  <trans_type>Term</trans_type>
+  <hidden_pan>2764</hidden_pan>
+  <stan>000060</stan>
+  <local_date>2012-04-13</local_date>
+  <local_time>11:40:20</local_time>
+  <ret_ref_nr>210854993993</ret_ref_nr>
+<auth_code />
+  <orig_currency>EUR</orig_currency>
+  <orig_amount>3.95</orig_amount>
+  <paym_currency>EUR</paym_currency>
+  <paym_amount>3.95</paym_amount>
+  <fee_amount>0.05</fee_amount>
+  <net_amount>3.90</net_amount>
+  </transaction>
+- <transaction>
+  <trans_type>Term</trans_type>
+  <hidden_pan>3404</hidden_pan>
+  <stan>000062</stan>
+  <local_date>2012-04-13</local_date>
+  <local_time>14:32:05</local_time>
+  <ret_ref_nr>210854993994</ret_ref_nr>
+  <auth_code>414364</auth_code>
+  <orig_currency>EUR</orig_currency>
+  <orig_amount>4.75</orig_amount>
+  <paym_currency>EUR</paym_currency>
+  <paym_amount>4.75</paym_amount>
+  <fee_amount>0.05</fee_amount>
+  <net_amount>4.70</net_amount>
+  </transaction>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>2</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>8.70</gross_amount>
+  </trans_curr_summary>
+  <count>2</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>8.70</gross_amount>
+  <fee_amount>0.10</fee_amount>
+  <net_amount>8.60</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Debit</type>
+  <region>Swedbank</region>
++ <transaction>
+  <trans_type>Term</trans_type>
+  <hidden_pan>2205</hidden_pan>
+  <stan>000057</stan>
+  <local_date>2012-04-13</local_date>
+  <local_time>11:05:57</local_time>
+  <ret_ref_nr>210454034485</ret_ref_nr>
+  <auth_code>603479</auth_code>
+  <orig_currency>EUR</orig_currency>
+  <orig_amount>4.25</orig_amount>
+  <paym_currency>EUR</paym_currency>
+  <paym_amount>4.25</paym_amount>
+  <fee_amount>0.04</fee_amount>
+  <net_amount>4.21</net_amount>
+  </transaction>
++ <transaction>
+  <trans_type>Term</trans_type>
+  <hidden_pan>8352</hidden_pan>
+  <stan>000058</stan>
+  <local_date>2012-04-13</local_date>
+  <local_time>11:06:42</local_time>
+  <ret_ref_nr>210454034687</ret_ref_nr>
+  <auth_code>603979</auth_code>
+  <orig_currency>EUR</orig_currency>
+  <orig_amount>4.75</orig_amount>
+  <paym_currency>EUR</paym_currency>
+  <paym_amount>4.75</paym_amount>
+  <fee_amount>0.05</fee_amount>
+  <net_amount>4.70</net_amount>
+  </transaction>
++ <transaction>
+  <trans_type>Term</trans_type>
+  <hidden_pan>1474</hidden_pan>
+  <stan>000061</stan>
+  <local_date>2012-04-13</local_date>
+  <local_time>13:15:30</local_time>
+  <ret_ref_nr>210454078282</ret_ref_nr>
+  <auth_code>706266</auth_code>
+  <orig_currency>EUR</orig_currency>
+  <orig_amount>3.00</orig_amount>
+  <paym_currency>EUR</paym_currency>
+  <paym_amount>3.00</paym_amount>
+  <fee_amount>0.03</fee_amount>
+  <net_amount>2.97</net_amount>
+  </transaction>
++ <transaction>
+  <trans_type>Term</trans_type>
+  <hidden_pan>1061</hidden_pan>
+  <stan>000063</stan>
+  <local_date>2012-04-16</local_date>
+  <local_time>10:03:06</local_time>
+  <ret_ref_nr>210754792143</ret_ref_nr>
+  <auth_code>978686</auth_code>
+  <orig_currency>EUR</orig_currency>
+  <orig_amount>2.73</orig_amount>
+  <paym_currency>EUR</paym_currency>
+  <paym_amount>2.73</paym_amount>
+  <fee_amount>0.03</fee_amount>
+  <net_amount>2.70</net_amount>
+  </transaction>
++ <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>4</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>14.73</gross_amount>
+  </trans_curr_summary>
+  <count>4</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>14.73</gross_amount>
+  <fee_amount>0.15</fee_amount>
+  <net_amount>14.58</net_amount>
+  </total>
+  </card_group>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>6</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>23.43</gross_amount>
+  </trans_curr_summary>
+  <count>6</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>23.43</gross_amount>
+  <fee_amount>0.25</fee_amount>
+  <net_amount>23.18</net_amount>
+  </total>
+  </batch>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>6</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>23.43</gross_amount>
+  </trans_curr_summary>
+  <count>6</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>23.43</gross_amount>
+  <fee_amount>0.25</fee_amount>
+  <net_amount>23.18</net_amount>
+  </total>
+  </terminal>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>6</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>23.43</gross_amount>
+  </trans_curr_summary>
+  <count>6</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>23.43</gross_amount>
+  <fee_amount>0.25</fee_amount>
+  <net_amount>23.18</net_amount>
+  </total>
+  </outlet>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>6</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>23.43</gross_amount>
+  </trans_curr_summary>
+  <count>6</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>23.43</gross_amount>
+  <fee_amount>0.25</fee_amount>
+  <net_amount>23.18</net_amount>
+  </total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>6</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>23.43</gross_amount>
+  </trans_curr_summary>
+  <count>6</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>23.43</gross_amount>
+  <fee_amount>0.25</fee_amount>
+  <net_amount>23.18</net_amount>
+  </total>
+</company>
+</posreport>
+Example 2: Batch based report
+<?xml version="1.0" encoding="UTF-8" ?>
+- <posreport version="2.1" rep_date="2012-05-02" per_start="2012-04-01" per_end="2012-05-01">
+- <company>
+  <id>93201456</id>
+  <name>Luuk OÜ</name>
+  <contact_address>LIIVALAIA 10</contact_address>
+  <contact_city>Tallinn</contact_city>
+  <contact_zip>15040</contact_zip>
+  <contact_country>EE</contact_country>
+- <outlet>
+  <id>9297565</id>
+  <name>Luuk-Libakaupmees</name>
+  <address>LIIVALAIA 8</address>
+  <city>Tallinn</city>
+  <zip>15040</zip>
+  <account_no>221014217590</account_no>
+  <country>ESTONIA</country>
+- <terminal>
+  <id>11060344515</id>
+- <batch>
+  <batch_no>040209</batch_no>
+  <batch_start>2012-04-02</batch_start>
+  <batch_close>2012-04-02</batch_close>
+  <value_date>2012-04-02</value_date>
+  <proc_date>2012-04-03</proc_date>
+- <card_group>
+  <organization>VISA</organization>
+  <type>Debit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>1.00</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>1.00</gross_amount>
+  <fee_amount>0.01</fee_amount>
+  <net_amount>0.99</net_amount>
+  </total>
+  </card_group>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>1.00</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>1.00</gross_amount>
+  <fee_amount>0.01</fee_amount>
+  <net_amount>0.99</net_amount>
+  </total>
+  </batch>
++ <batch>
+  <batch_no>040210</batch_no>
+  <batch_start>2012-04-02</batch_start>
+  <batch_close>2012-04-02</batch_close>
+  <value_date>2012-04-02</value_date>
+  <proc_date>2012-04-03</proc_date>
+- <card_group>
+  <organization />
+  <type>Debit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>1.80</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>1.80</gross_amount>
+  <fee_amount>0.02</fee_amount>
+  <net_amount>1.78</net_amount>
+  </total>
+  </card_group>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>1.80</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>1.80</gross_amount>
+  <fee_amount>0.02</fee_amount>
+  <net_amount>1.78</net_amount>
+  </total>
+  </batch>
++ <batch>
+  <batch_no>040211</batch_no>
+  <batch_start>2012-04-02</batch_start>
+  <batch_close>2012-04-02</batch_close>
+  <value_date>2012-04-02</value_date>
+  <proc_date>2012-04-03</proc_date>
+- <card_group>
+  <organization>MasterCard</organization>
+  <type>Business</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>3.60</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>3.60</gross_amount>
+  <fee_amount>0.04</fee_amount>
+  <net_amount>3.56</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization>MasterCard</organization>
+  <type>Credit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>52.36</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>52.36</gross_amount>
+  <fee_amount>0.60</fee_amount>
+  <net_amount>51.76</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization>MasterCard</organization>
+  <type>Debit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>2.50</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>2.50</gross_amount>
+  <fee_amount>0.03</fee_amount>
+  <net_amount>2.47</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization>VISA</organization>
+  <type>Debit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>3</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>9.75</gross_amount>
+  </trans_curr_summary>
+  <count>3</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>9.75</gross_amount>
+  <fee_amount>0.11</fee_amount>
+  <net_amount>9.64</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Debit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>8.11</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>8.11</gross_amount>
+  <fee_amount>0.08</fee_amount>
+  <net_amount>8.03</net_amount>
+  </total>
+  </card_group>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>7</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>76.32</gross_amount>
+  </trans_curr_summary>
+  <count>7</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>76.32</gross_amount>
+  <fee_amount>0.86</fee_amount>
+  <net_amount>75.46</net_amount>
+  </total>
+  </batch>
++ <batch>
+  <batch_no>040314</batch_no>
+  <batch_start>2012-04-03</batch_start>
+  <batch_close>2012-04-03</batch_close>
+  <value_date>2012-04-03</value_date>
+  <proc_date>2012-04-04</proc_date>
+- <card_group>
+  <organization>MasterCard</organization>
+  <type>Credit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>3.71</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>3.71</gross_amount>
+  <fee_amount>0.04</fee_amount>
+  <net_amount>3.67</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization>VISA</organization>
+  <type>Debit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>3.60</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>3.60</gross_amount>
+  <fee_amount>0.04</fee_amount>
+  <net_amount>3.56</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Credit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>3.00</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>3.00</gross_amount>
+  <fee_amount>0.03</fee_amount>
+  <net_amount>2.97</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Debit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>2</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>9.57</gross_amount>
+  </trans_curr_summary>
+  <count>2</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>9.57</gross_amount>
+  <fee_amount>0.09</fee_amount>
+  <net_amount>9.48</net_amount>
+  </total>
+  </card_group>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>5</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>19.88</gross_amount>
+  </trans_curr_summary>
+  <count>5</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>19.88</gross_amount>
+  <fee_amount>0.20</fee_amount>
+  <net_amount>19.68</net_amount>
+  </total>
+  </batch>
++ <batch>
+  <batch_no>040415</batch_no>
+  <batch_start>2012-04-04</batch_start>
+  <batch_close>2012-04-04</batch_close>
+  <value_date>2012-04-04</value_date>
+  <proc_date>2012-04-05</proc_date>
+- <card_group>
+  <organization />
+  <type>Credit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>2.90</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>2.90</gross_amount>
+  <fee_amount>0.03</fee_amount>
+  <net_amount>2.87</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Debit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>3</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>8.80</gross_amount>
+  </trans_curr_summary>
+  <count>3</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>8.80</gross_amount>
+  <fee_amount>0.09</fee_amount>
+  <net_amount>8.71</net_amount>
+  </total>
+  </card_group>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>4</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>11.70</gross_amount>
+  </trans_curr_summary>
+  <count>4</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>11.70</gross_amount>
+  <fee_amount>0.12</fee_amount>
+  <net_amount>11.58</net_amount>
+  </total>
+  </batch>
++ <batch>
+  <batch_no>040916</batch_no>
+  <batch_start>2012-04-09</batch_start>
+  <batch_close>2012-04-09</batch_close>
+  <value_date>2012-04-09</value_date>
+  <proc_date>2012-04-10</proc_date>
+- <card_group>
+  <organization />
+  <type>Credit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>5.30</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>5.30</gross_amount>
+  <fee_amount>0.05</fee_amount>
+  <net_amount>5.25</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Debit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>1.14</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>1.14</gross_amount>
+  <fee_amount>0.01</fee_amount>
+  <net_amount>1.13</net_amount>
+  </total>
+  </card_group>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>2</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>6.44</gross_amount>
+  </trans_curr_summary>
+  <count>2</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>6.44</gross_amount>
+  <fee_amount>0.06</fee_amount>
+  <net_amount>6.38</net_amount>
+  </total>
+  </batch>
++ <batch>
+  <batch_no>040918</batch_no>
+  <batch_start>2012-04-09</batch_start>
+  <batch_close>2012-04-09</batch_close>
+  <value_date>2012-04-09</value_date>
+  <proc_date>2012-04-10</proc_date>
+- <card_group>
+  <organization>MasterCard</organization>
+  <type>Debit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>3.00</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>3.00</gross_amount>
+  <fee_amount>0.03</fee_amount>
+  <net_amount>2.97</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Credit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>2</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>6.30</gross_amount>
+  </trans_curr_summary>
+  <count>2</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>6.30</gross_amount>
+  <fee_amount>0.06</fee_amount>
+  <net_amount>6.24</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Debit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>3.00</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>3.00</gross_amount>
+  <fee_amount>0.03</fee_amount>
+  <net_amount>2.97</net_amount>
+  </total>
+  </card_group>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>4</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>12.30</gross_amount>
+  </trans_curr_summary>
+  <count>4</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>12.30</gross_amount>
+  <fee_amount>0.12</fee_amount>
+  <net_amount>12.18</net_amount>
+  </total>
+  </batch>
++ <batch>
+  <batch_no>041019</batch_no>
+  <batch_start>2012-04-10</batch_start>
+  <batch_close>2012-04-10</batch_close>
+  <value_date>2012-04-10</value_date>
+  <proc_date>2012-04-11</proc_date>
+- <card_group>
+  <organization>MasterCard</organization>
+  <type>Debit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>4.11</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>4.11</gross_amount>
+  <fee_amount>0.04</fee_amount>
+  <net_amount>4.07</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Credit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>3.85</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>3.85</gross_amount>
+  <fee_amount>0.04</fee_amount>
+  <net_amount>3.81</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Debit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>3</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>15.25</gross_amount>
+  </trans_curr_summary>
+  <count>3</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>15.25</gross_amount>
+  <fee_amount>0.15</fee_amount>
+  <net_amount>15.10</net_amount>
+  </total>
+  </card_group>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>5</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>23.21</gross_amount>
+  </trans_curr_summary>
+  <count>5</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>23.21</gross_amount>
+  <fee_amount>0.23</fee_amount>
+  <net_amount>22.98</net_amount>
+  </total>
+  </batch>
++ <batch>
+  <batch_no>041120</batch_no>
+  <batch_start>2012-04-11</batch_start>
+  <batch_close>2012-04-11</batch_close>
+  <value_date>2012-04-11</value_date>
+  <proc_date>2012-04-12</proc_date>
+- <card_group>
+  <organization>MasterCard</organization>
+  <type>Debit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>4.11</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>4.11</gross_amount>
+  <fee_amount>0.04</fee_amount>
+  <net_amount>4.07</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization>VISA</organization>
+  <type>Debit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>3.77</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>3.77</gross_amount>
+  <fee_amount>0.04</fee_amount>
+  <net_amount>3.73</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Debit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>3</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>8.44</gross_amount>
+  </trans_curr_summary>
+  <count>3</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>8.44</gross_amount>
+  <fee_amount>0.09</fee_amount>
+  <net_amount>8.35</net_amount>
+  </total>
+  </card_group>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>5</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>16.32</gross_amount>
+  </trans_curr_summary>
+  <count>5</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>16.32</gross_amount>
+  <fee_amount>0.17</fee_amount>
+  <net_amount>16.15</net_amount>
+  </total>
+  </batch>
++ <batch>
+  <batch_no>041122</batch_no>
+  <batch_start>2012-04-11</batch_start>
+  <batch_close>2012-04-11</batch_close>
+  <value_date>2012-04-11</value_date>
+  <proc_date>2012-04-12</proc_date>
+- <card_group>
+  <organization>VISA</organization>
+  <type>Debit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>5.10</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>5.10</gross_amount>
+  <fee_amount>0.05</fee_amount>
+  <net_amount>5.05</net_amount>
+  </total>
+  </card_group>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>5.10</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>5.10</gross_amount>
+  <fee_amount>0.05</fee_amount>
+  <net_amount>5.05</net_amount>
+  </total>
+  </batch>
++ <batch>
+  <batch_no>041323</batch_no>
+  <batch_start>2012-04-13</batch_start>
+  <batch_close>2012-04-13</batch_close>
+  <value_date>2012-04-13</value_date>
+  <proc_date>2012-04-14</proc_date>
+- <card_group>
+  <organization>MasterCard</organization>
+  <type>Debit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>2</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>5.84</gross_amount>
+  </trans_curr_summary>
+  <count>2</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>5.84</gross_amount>
+  <fee_amount>0.07</fee_amount>
+  <net_amount>5.77</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization>VISA</organization>
+  <type>Debit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>4.64</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>4.64</gross_amount>
+  <fee_amount>0.05</fee_amount>
+  <net_amount>4.59</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Debit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>3</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>7.20</gross_amount>
+  </trans_curr_summary>
+  <count>3</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>7.20</gross_amount>
+  <fee_amount>0.07</fee_amount>
+  <net_amount>7.13</net_amount>
+  </total>
+  </card_group>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>6</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>17.68</gross_amount>
+  </trans_curr_summary>
+  <count>6</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>17.68</gross_amount>
+  <fee_amount>0.19</fee_amount>
+  <net_amount>17.49</net_amount>
+  </total>
+  </batch>
++ <batch>
+  <batch_no>041624</batch_no>
+  <batch_start>2012-04-16</batch_start>
+  <batch_close>2012-04-16</batch_close>
+  <value_date>2012-04-16</value_date>
+  <proc_date>2012-04-17</proc_date>
+- <card_group>
+  <organization>MasterCard</organization>
+  <type>Credit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>2</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>8.70</gross_amount>
+  </trans_curr_summary>
+  <count>2</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>8.70</gross_amount>
+  <fee_amount>0.10</fee_amount>
+  <net_amount>8.60</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Debit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>4</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>14.73</gross_amount>
+  </trans_curr_summary>
+  <count>4</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>14.73</gross_amount>
+  <fee_amount>0.15</fee_amount>
+  <net_amount>14.58</net_amount>
+  </total>
+  </card_group>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>6</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>23.43</gross_amount>
+  </trans_curr_summary>
+  <count>6</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>23.43</gross_amount>
+  <fee_amount>0.25</fee_amount>
+  <net_amount>23.18</net_amount>
+  </total>
+  </batch>
++ <batch>
+  <batch_no>041925</batch_no>
+  <batch_start>2012-04-19</batch_start>
+  <batch_close>2012-04-19</batch_close>
+  <value_date>2012-04-20</value_date>
+  <proc_date>2012-04-20</proc_date>
+- <card_group>
+  <organization>MasterCard</organization>
+  <type>Credit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>5</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>13.64</gross_amount>
+  </trans_curr_summary>
+  <count>5</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>13.64</gross_amount>
+  <fee_amount>0.15</fee_amount>
+  <net_amount>13.49</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization>MasterCard</organization>
+  <type>Debit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>4</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>18.77</gross_amount>
+  </trans_curr_summary>
+  <count>4</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>18.77</gross_amount>
+  <fee_amount>0.21</fee_amount>
+  <net_amount>18.56</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization>VISA</organization>
+  <type>Credit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>3.00</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>3.00</gross_amount>
+  <fee_amount>0.03</fee_amount>
+  <net_amount>2.97</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization>VISA</organization>
+  <type>Debit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>3.10</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>3.10</gross_amount>
+  <fee_amount>0.03</fee_amount>
+  <net_amount>3.07</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Credit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>2</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>5.95</gross_amount>
+  </trans_curr_summary>
+  <count>2</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>5.95</gross_amount>
+  <fee_amount>0.06</fee_amount>
+  <net_amount>5.89</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Debit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>13</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>36.06</gross_amount>
+  </trans_curr_summary>
+  <count>13</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>36.06</gross_amount>
+  <fee_amount>0.37</fee_amount>
+  <net_amount>35.69</net_amount>
+  </total>
+  </card_group>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>26</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>80.52</gross_amount>
+  </trans_curr_summary>
+  <count>26</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>80.52</gross_amount>
+  <fee_amount>0.85</fee_amount>
+  <net_amount>79.67</net_amount>
+  </total>
+  </batch>
++ <batch>
+  <batch_no>042027</batch_no>
+  <batch_start>2012-04-20</batch_start>
+  <batch_close>2012-04-20</batch_close>
+  <value_date>2012-04-21</value_date>
+  <proc_date>2012-04-21</proc_date>
+- <card_group>
+  <organization />
+  <type>Debit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>3</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>10.22</gross_amount>
+  </trans_curr_summary>
+  <count>3</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>10.22</gross_amount>
+  <fee_amount>0.10</fee_amount>
+  <net_amount>10.12</net_amount>
+  </total>
+  </card_group>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>3</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>10.22</gross_amount>
+  </trans_curr_summary>
+  <count>3</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>10.22</gross_amount>
+  <fee_amount>0.10</fee_amount>
+  <net_amount>10.12</net_amount>
+  </total>
+  </batch>
++ <batch>
+  <batch_no>042028</batch_no>
+  <batch_start>2012-04-20</batch_start>
+  <batch_close>2012-04-20</batch_close>
+  <value_date>2012-04-21</value_date>
+  <proc_date>2012-04-21</proc_date>
+- <card_group>
+  <organization>MasterCard</organization>
+  <type>Debit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>3.11</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>3.11</gross_amount>
+  <fee_amount>0.03</fee_amount>
+  <net_amount>3.08</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization>VISA</organization>
+  <type>Credit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>2.60</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>2.60</gross_amount>
+  <fee_amount>0.03</fee_amount>
+  <net_amount>2.57</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization>VISA</organization>
+  <type>Debit</type>
+  <region>EU</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>1</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>4.81</gross_amount>
+  </trans_curr_summary>
+  <count>1</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>4.81</gross_amount>
+  <fee_amount>0.05</fee_amount>
+  <net_amount>4.76</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Credit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>2</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>5.71</gross_amount>
+  </trans_curr_summary>
+  <count>2</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>5.71</gross_amount>
+  <fee_amount>0.06</fee_amount>
+  <net_amount>5.65</net_amount>
+  </total>
+  </card_group>
+- <card_group>
+  <organization />
+  <type>Debit</type>
+  <region>Swedbank</region>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>2</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>5.90</gross_amount>
+  </trans_curr_summary>
+  <count>2</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>5.90</gross_amount>
+  <fee_amount>0.06</fee_amount>
+  <net_amount>5.84</net_amount>
+  </total>
+  </card_group>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>7</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>22.13</gross_amount>
+  </trans_curr_summary>
+  <count>7</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>22.13</gross_amount>
+  <fee_amount>0.23</fee_amount>
+  <net_amount>21.90</net_amount>
+  </total>
+  </batch>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>83</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>328.05</gross_amount>
+  </trans_curr_summary>
+  <count>83</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>328.05</gross_amount>
+  <fee_amount>3.46</fee_amount>
+  <net_amount>324.59</net_amount>
+  </total>
+  </terminal>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>83</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>328.05</gross_amount>
+  </trans_curr_summary>
+  <count>83</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>328.05</gross_amount>
+  <fee_amount>3.46</fee_amount>
+  <net_amount>324.59</net_amount>
+  </total>
+  </outlet>
+- <total>
+  <trans_type>Term</trans_type>
+- <trans_curr_summary>
+  <count>83</count>
+  <trans_currency>EUR</trans_currency>
+  <gross_amount>328.05</gross_amount>
+  </trans_curr_summary>
+  <count>83</count>
+  <paym_currency>EUR</paym_currency>
+  <gross_amount>328.05</gross_amount>
+  <fee_amount>3.46</fee_amount>
+  <net_amount>324.59</net_amount>
+  </total>
+  </company>
+</posreport>
+
+Operator report
+
+Bank initiated notification type report about conclusion and closure of customer agreement, sent to the operator by default. Bank should be informed in case operator does not want to get the reports.
+
+Report enables operators to receive SGW agreement id for future SGW services usage by the concrete customer. Customer identification can be done by country, registration number and name match.
+
+Request
+There is no POST request – bank is generating these messages based on customer agreement conclusion or closure.
+
+Response
+Operator report info can be found from common inbox: GET https://psd2.api.swedbank.com/partner/v1/sgw/messages?client_id=<API Key>
+
+HTTP header: X-Request-IDand Date are mandatory
+Parameter API Key is mandatory
+The response contains:
+
+Body – xml file
+Header X-Request-ID – Request ID set by the Bank (CUSTOMER_AGREEMENT_MANAGEMENT).
+Header X-Tracking-ID – Bank side message ID.
+Header X-Agreement-ID - Swedbank Gateway agreement number provided by the bank
+Header Date - Date and time of response
+Messages are currently sent one per agreement.
+
+xml. body response examples for new agreement and agreement closure you can see below.
+
+Example of New agreement
+
+<?xml version="1.0" encoding="UTF-8"?>
+<GatewayAgreements xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:noNamespaceSchemaLocation="agreementChanges.xsd">
+  <Agreement id="123">
+    <Country>EE</Country>
+    <Name>Legal Name</Name>
+    <RegistrationNumber>45789</RegistrationNumber>
+    <TimeStamp>2019-01-01T13:10:00</TimeStamp>
+  </Agreement>
+</GatewayAgreements>
+
+Example of Agreement closure
+
+<?xml version="1.0" encoding="UTF-8"?>
+<GatewayAgreements xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:noNamespaceSchemaLocation="agreementChanges.xsd">
+  <Agreement id="123" closeAction="BANK">
+    <Country>EE</Country>
+    <Name>Legal Name</Name>
+    <RegistrationNumber>45789</RegistrationNumber>
+    <TimeStamp>2019-02-01T16:10:07</TimeStamp>
+  </Agreement>
+</GatewayAgreements>
+NB! Consider future possibility of additional data fields and combining multiple agreements into one XML (duplicating "Agreement" element).
+
+Link to prefilled Gateway Operator agreement conclusion
+
+
+Externally usable link to Swedbank Internetbank Business for SGW Operator agreement conclusion with prefilled Operator data.
+
+Link will navigate to Swedbank Internetbank login page and after successful login to Swedbank Gateway Operator agreement conclusion screen. Operator is preselected.
+Link is operator specific and selection is done based on operatorID provided in link (SGW operator agreement number).
+Customer must have representation rights in Company Registry or Swedbank Database, to conclude an agreement.
+If Operator agreement is not found (operatorID don’t exist/was written wrongly) or customer al-ready has agreement with this Operator, then following error message is presented: “Pre selecting operator failed! Verify if You already have this operator agreement! Agreement con-cluding is not allowed”.
+Link can be created with following addresses:
+
+EE: https://www.swedbank.ee/business/d2d/ebanking/gateway/conclude?operatorId=operator_agreement_id
+
+LV: https://www.swedbank.lv/business/d2d/ebanking/gateway/conclude?operatorId=operator_agreement_id
+
+LT: https://www.swedbank.lt/business/d2d/ebanking/gateway/conclude?operatorId=operator_agreement_id
+
+NB! Operator_agreement_id needs to be replaced with Operator agreement number.
+
+EXAMPLE
+https://www.swedbank.ee/business/d2d/ebanking/gateway/conclude?operatorId=12345
+
+Markets transaction reports
+
+
+Markets transaction reports – is a service provided via Swedbank Gateway channel. Technical specifications for supported Transaction types are described in separate document, provided by Swedbank Markets.
+
+Documents are available on Swedbank Gateway product page: EE, LV and LT
+
+This service delivers reports via SGW for supported Transaction types, whenever Client executes a Transaction in accordance with FTMA (Financial Transactions Master Agreement).
+
+To start using the Service, the Client must:
+
+Conclude Swedbank Gateway service agreement;
+Request provision of the Markets Transaction Service by completing and signing appropriate section of FTMA;
+Perform necessary integration(s) of IT systems to comply with conditions of this Service and SGW Service.
+Each Transaction type has a predefined XML structure, corresponding to the type of the financial instrument being traded. The structure and definitions of XML elements for each Transaction type are provided in the separate document, provided by Swedbank Markets.
+
+Currently supported Transaction types are:
+
+Foreign Exchange Spot transaction
+Foreign Exchange Forward transaction
+Foreign Exchange Swap transaction
+Foreign Exchange Option transaction
+Deposit transaction
+Collateral Deposit transaction
+Futures transaction
+By using this Service, the Client acknowledges that information and/or Transaction reports provided under this Service do not replace or enhance the information and/or reports required to be provided in accordance with the conditions set by FTMA (and/or its Annexes).
+
+In case of any discrepancies in information being provided, the Client must always rely on information provided in accordance with the clauses of FTMA which govern the provision of such information.
