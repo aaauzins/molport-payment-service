@@ -41,7 +41,7 @@ public class StripeWorker : BackgroundService
                 {
                     await RunCycleAsync(accountName, client);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     _logger.LogError(ex, "StripeWorker cycle failed for account {Account}", accountName);
                 }

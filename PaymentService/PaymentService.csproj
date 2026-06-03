@@ -11,7 +11,7 @@
     <PackageReference Include="Dapper" Version="2.1.79" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
     <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.26.200" />
-    <PackageReference Include="Stripe.net" Version="51.1.0" />
+    <PackageReference Include="Stripe.net" Version="51.2.0" />
   </ItemGroup>
 
 </Project>

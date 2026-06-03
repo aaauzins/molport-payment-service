@@ -37,7 +37,7 @@ public class SwedBankWorker : BackgroundService
             {
                 await RunCycleAsync();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogError(ex, "SwedBankWorker cycle failed");
             }

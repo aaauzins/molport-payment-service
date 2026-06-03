@@ -432,7 +432,7 @@ bin/
 obj/
 
 # Secrets - never commit these
-appsettings.json
+appsettings.Development.json
 appsettings.Production.json
 appsettings.*.local.json
 
