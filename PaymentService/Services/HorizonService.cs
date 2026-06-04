@@ -149,7 +149,13 @@ public class HorizonService
 
         Find("PK_KLIENTS").Descendants().First(e => e.Name.LocalName == "href").Value = customerRestId;
 
-        Find("PK_R_ES").Add(new XElement(ns + "href", receiverId));
+        // Template 10 pre-fills PK_R_ES with /rest/TDdmSaviRekAll/8 (Alliance); replace it rather than adding a second href
+        var pkREs = Find("PK_R_ES");
+        var existingHref = pkREs.Descendants().FirstOrDefault(e => e.Name.LocalName == "href");
+        if (existingHref != null)
+            existingHref.Value = receiverId;
+        else
+            pkREs.Add(new XElement(ns + "href", receiverId));
 
         var amountStr = invoice.Amount.ToString("0.##", CultureInfo.InvariantCulture);
         Find("SUMMA").Value = amountStr;

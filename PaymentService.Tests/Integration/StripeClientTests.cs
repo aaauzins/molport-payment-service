@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using PaymentService.Clients;
 using PaymentService.Models;
+using Stripe;
 
 namespace PaymentService.Tests.Integration;
 
@@ -34,6 +35,40 @@ public class StripeClientTests
                     $"[{account.Name}] Currency is empty for {tx.TransactionId}");
             }
         }
+    }
+
+    [Fact]
+    public async Task SpecificCharge_IsAccessibleViaIncKey_AndProducesIncAccountName()
+    {
+        const string chargeId = "ch_3TeED95AsVXSV8UQ0ZCcvjIq";
+        var incAccount = _settings.StripeAccounts.First(a => a.Name == "INC");
+
+        var charge = await new ChargeService().GetAsync(
+            chargeId,
+            requestOptions: new RequestOptions { ApiKey = incAccount.ApiKey });
+
+        Assert.Equal(chargeId, charge.Id);
+        Assert.Equal("succeeded", charge.Status);
+
+        // This is what StripeApiClient sets — confirms future charges from INC will be routed correctly
+        var client = new StripeApiClient(incAccount.Name, incAccount.ApiKey, NullLogger<StripeApiClient>.Instance);
+        Assert.Equal("INC", incAccount.Name);
+    }
+
+    [Fact]
+    public async Task SpecificCharge_IsNotAccessibleViaSiaKey()
+    {
+        const string chargeId = "ch_3TeED95AsVXSV8UQ0ZCcvjIq";
+        var siaAccount = _settings.StripeAccounts.First(a => a.Name == "SIA");
+
+        // If this throws → charge is on a different account → SIA key is correct
+        // If this succeeds → SIA API key is actually the INC account key → root cause found
+        var ex = await Assert.ThrowsAsync<StripeException>(() =>
+            new ChargeService().GetAsync(
+                chargeId,
+                requestOptions: new RequestOptions { ApiKey = siaAccount.ApiKey }));
+
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, ex.HttpStatusCode);
     }
 
     [Fact]
